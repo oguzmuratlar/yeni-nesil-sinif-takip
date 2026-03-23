@@ -1,0 +1,150 @@
+{
+  "project_name": "Tutoring Center Management System",
+  "theme_strategy": {
+    "default_theme": "light",
+    "mode": "role_based_aesthetics",
+    "description": "Admin panel uses a high-energy, high-contrast 'Dynamic' theme. Teacher panel uses a calm, minimal 'Organic' theme."
+  },
+  "typography": {
+    "font_family": {
+      "headings": "Manrope, sans-serif",
+      "body": "Inter, sans-serif",
+      "code": "JetBrains Mono, monospace"
+    },
+    "imports": [
+      "@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap');"
+    ],
+    "scale": {
+      "h1": "text-4xl md:text-5xl font-extrabold tracking-tight",
+      "h2": "text-3xl font-bold tracking-tight",
+      "h3": "text-2xl font-semibold tracking-normal",
+      "body": "text-base font-normal leading-relaxed text-slate-600",
+      "caption": "text-sm font-medium text-slate-500 uppercase tracking-wider"
+    }
+  },
+  "colors": {
+    "admin_palette": {
+      "primary": "#2563EB",
+      "primary_foreground": "#FFFFFF",
+      "secondary": "#EFF6FF",
+      "accent": "#F97316",
+      "background": "#F8FAFC",
+      "surface": "#FFFFFF",
+      "border": "#E2E8F0",
+      "success": "#10B981",
+      "warning": "#F59E0B",
+      "error": "#EF4444"
+    },
+    "teacher_palette": {
+      "primary": "#0D9488",
+      "primary_foreground": "#FFFFFF",
+      "secondary": "#F0FDFA",
+      "accent": "#F59E0B",
+      "background": "#FAFAF9",
+      "surface": "#FFFFFF",
+      "border": "#E7E5E4",
+      "text_muted": "#78716C"
+    },
+    "gradients": {
+      "admin_hero": "bg-gradient-to-br from-blue-600 to-indigo-700",
+      "teacher_hero": "bg-gradient-to-br from-teal-50 to-stone-100",
+      "card_hover": "hover:bg-gradient-to-br hover:from-white hover:to-slate-50"
+    }
+  },
+  "visual_enhancers": {
+    "shadows": {
+      "card_admin": "shadow-[0_2px_8px_rgba(15,23,42,0.08)]",
+      "card_teacher": "shadow-[0_4px_20px_rgba(0,0,0,0.03)]",
+      "float": "shadow-[0_20px_40px_-12px_rgba(0,0,0,0.1)]",
+      "inner": "shadow-inner"
+    },
+    "borders": {
+      "admin": "border border-slate-200",
+      "teacher": "border border-stone-100"
+    },
+    "radius": {
+      "admin": "rounded-lg",
+      "teacher": "rounded-2xl"
+    },
+    "glassmorphism": {
+      "header": "bg-white/80 backdrop-blur-md border-b border-white/20 supports-[backdrop-filter]:bg-white/60"
+    }
+  },
+  "components": {
+    "buttons": {
+      "admin_primary": "bg-blue-600 text-white hover:bg-blue-700 font-semibold shadow-sm transition-all active:scale-95 rounded-md px-6 py-2.5",
+      "teacher_primary": "bg-teal-600 text-white hover:bg-teal-700 font-medium shadow-sm hover:shadow-md transition-all rounded-full px-8 py-3",
+      "ghost": "hover:bg-slate-100 text-slate-700 font-medium transition-colors"
+    },
+    "cards": {
+      "admin_dashboard": "bg-white border border-slate-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow",
+      "teacher_card": "bg-white border-0 ring-1 ring-stone-100 rounded-2xl p-8 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300"
+    },
+    "inputs": {
+      "default": "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+    },
+    "tables": {
+      "wrapper": "w-full overflow-hidden rounded-lg border bg-white shadow-sm",
+      "header": "bg-slate-50 border-b p-4 text-left font-semibold text-slate-600",
+      "row": "border-b last:border-0 hover:bg-slate-50 transition-colors cursor-pointer"
+    }
+  },
+  "layout": {
+    "grid_admin": "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6",
+    "grid_teacher": "grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto",
+    "container": "container mx-auto px-4 md:px-6 lg:px-8",
+    "section_spacing": "py-12 md:py-16 lg:py-24"
+  },
+  "image_urls": {
+    "login_hero": {
+      "url": "https://images.unsplash.com/photo-1767102060241-130cb9260718?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2Mzl8MHwxfHNlYXJjaHwxfHxzdHVkZW50JTIwc3R1ZHlpbmclMjBtb2Rlcm4lMjBsaWJyYXJ5fGVufDB8fHx8MTc3NDI4ODg0Nnww&ixlib=rb-4.1.0&q=85",
+      "description": "Modern library study scene, good for login side panel or landing hero",
+      "category": "hero"
+    },
+    "teacher_dashboard_promo": {
+      "url": "https://images.pexels.com/photos/5428011/pexels-photo-5428011.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Teacher helping student, use for teacher portal welcome or empty states",
+      "category": "illustration"
+    },
+    "empty_state_students": {
+      "url": "https://images.unsplash.com/photo-1763811938053-2e88eba977a1?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2Mzl8MHwxfHNlYXJjaHw0fHxzdHVkZW50JTIwc3R1ZHlpbmclMjBtb2Rlcm4lMjBsaWJyYXJ5fGVufDB8fHx8MTc3NDI4ODg0Nnww&ixlib=rb-4.1.0&q=85",
+      "description": "Wide shot of library, good for empty student list background (faded)",
+      "category": "background"
+    }
+  },
+  "motion": {
+    "page_transition": {
+      "initial": { "opacity": 0, "y": 20 },
+      "animate": { "opacity": 1, "y": 0 },
+      "exit": { "opacity": 0, "y": -20 },
+      "transition": { "duration": 0.3, "ease": "easeOut" }
+    },
+    "list_item_stagger": 0.05,
+    "hover_lift": "hover:-translate-y-1 transition-transform duration-200"
+  },
+  "accessibility": {
+    "contrast_check": "Ensure all text on colored backgrounds meets APCA guidelines (min Lc 60).",
+    "focus_states": "focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary",
+    "reduced_motion": "motion-safe:transition-all motion-reduce:transition-none"
+  },
+  "instructions_to_main_agent": [
+    "Install 'lucide-react' for icons if not present.",
+    "Install 'clsx' and 'tailwind-merge' for class handling.",
+    "For Admin Pages: Use 'grid_admin' layout and 'admin_palette' colors. Prioritize density and data visibility.",
+    "For Teacher Pages: Use 'grid_teacher' layout and 'teacher_palette' colors. Prioritize whitespace and focus.",
+    "Login Page: Split screen. Left side form, Right side 'login_hero' image with a quote overlay.",
+    "Forms: Use Shadcn Form/Input components but style them according to the role (Admin vs Teacher).",
+    "Charts: Use 'Recharts' with the defined palette colors.",
+    "Sidebar: Admin gets a collapsible vertical sidebar (dark blue or white). Teacher gets a simple top navigation bar (minimal)."
+  ],
+  "universal_guidelines": [
+    "DO NOT use generic centered layouts. Use grid-based asymmetry.",
+    "Create depth through layered design elements (z-index hierarchy).",
+    "Use glass-morphism effects with backdrop filters (12-24px blur) for sticky headers.",
+    "Add 'data-testid' to all interactive elements for testing.",
+    "Every interaction needs micro-animations (hover, active, focus).",
+    "Use 2-3x more spacing than typical defaults (p-8 instead of p-4).",
+    "Avoid using gradients for dark colors; use them for subtle light backgrounds only.",
+    "Never use pure black (#000000); use slate-900 or zinc-900."
+  ]
+}
