@@ -39,13 +39,14 @@ const AdminGroups = () => {
   };
 
   const handleDelete = async (groupId) => {
-    if (!window.confirm('Bu grubu silmek istediğinizden emin misiniz?')) return;
+    if (!window.confirm('Bu grubu pasifleştirmek istediğinizden emin misiniz?')) return;
     try {
       await apiClient.delete(`/student-groups/${groupId}`);
-      toast.success('Grup silindi');
+      toast.success('Grup pasifleştirildi');
       fetchData();
     } catch (error) {
-      toast.error('Silme başarısız');
+      toast.error('İşlem başarısız');
+      console.error(error);
     }
   };
 

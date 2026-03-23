@@ -13,6 +13,7 @@ const AdminStudentProfile = () => {
   const [student, setStudent] = useState(null);
   const [courses, setCourses] = useState([]);
   const [lessons, setLessons] = useState([]);
+  const [groups, setGroups] = useState([]);
   const [branches, setBranches] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [lessonTypes, setLessonTypes] = useState([]);
@@ -24,18 +25,23 @@ const AdminStudentProfile = () => {
 
   const fetchData = async () => {
     try {
-      const [studentRes, coursesRes, branchesRes, teachersRes, typesRes] = await Promise.all([
+      const [studentRes, coursesRes, branchesRes, teachersRes, typesRes, groupsRes] = await Promise.all([
         apiClient.get(`/students/${id}`),
         apiClient.get(`/student-courses?student_id=${id}`),
         apiClient.get('/branches'),
         apiClient.get('/teachers'),
-        apiClient.get('/lesson-types')
+        apiClient.get('/lesson-types'),
+        apiClient.get('/student-groups')
       ]);
       setStudent(studentRes.data);
       setCourses(coursesRes.data);
       setBranches(branchesRes.data);
       setTeachers(teachersRes.data);
       setLessonTypes(typesRes.data);
+      
+      // Find groups that include this student
+      const studentGroups = groupsRes.data.filter(g => g.student_ids.includes(id));
+      setGroups(studentGroups);
       
       // Fetch all lessons for all courses
       const allLessons = [];
@@ -123,6 +129,18 @@ const AdminStudentProfile = () => {
                 <div>
                   <span className="text-sm text-slate-500">Notlar:</span>
                   <p className="font-semibold">{student.notes}</p>
+                </div>
+              )}
+              {groups.length > 0 && (
+                <div>
+                  <span className="text-sm text-slate-500">Gruplar:</span>
+                  <div className="mt-1">
+                    {groups.map(group => (
+                      <Badge key={group.id} variant="secondary" className="mr-1">
+                        {group.name}
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

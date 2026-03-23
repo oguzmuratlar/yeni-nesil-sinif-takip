@@ -49,6 +49,23 @@ const AdminStudentForm = () => {
     }
   }, [id]);
 
+  const fetchStudent = async () => {
+    try {
+      const response = await apiClient.get(`/students/${id}`);
+      setFormData({
+        name: response.data.name,
+        parent_name: response.data.parent_name,
+        phone: response.data.phone,
+        level: response.data.level,
+        payment_freq: response.data.payment_freq,
+        notes: response.data.notes || '',
+        bank_account_id: response.data.bank_account_id || ''
+      });
+    } catch (error) {
+      toast.error('Öğrenci bilgileri yüklenemedi');
+    }
+  };
+
   const fetchReferenceData = async () => {
     try {
       const [banksRes, branchesRes, teachersRes, typesRes, seasonsRes] = await Promise.all([
@@ -71,7 +88,15 @@ const AdminStudentForm = () => {
   const fetchStudent = async () => {
     try {
       const response = await apiClient.get(`/students/${id}`);
-      setFormData(response.data);
+      setFormData({
+        name: response.data.name,
+        parent_name: response.data.parent_name,
+        phone: response.data.phone,
+        level: response.data.level,
+        payment_freq: response.data.payment_freq,
+        notes: response.data.notes || '',
+        bank_account_id: response.data.bank_account_id || ''
+      });
     } catch (error) {
       toast.error('Öğrenci bilgileri yüklenemedi');
     }

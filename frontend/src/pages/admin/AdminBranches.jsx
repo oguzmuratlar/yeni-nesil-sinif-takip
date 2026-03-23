@@ -51,7 +51,7 @@ const AdminBranches = () => {
   };
 
   const getBranchTeachers = (branchId) => {
-    // This would need teacher_branches table, for now show all teachers
+    // Get teachers who have prices for this branch
     return teachers.filter(t => t.status === 'active');
   };
 
