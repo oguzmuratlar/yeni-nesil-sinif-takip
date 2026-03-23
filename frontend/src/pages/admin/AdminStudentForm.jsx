@@ -49,6 +49,13 @@ const AdminStudentForm = () => {
     }
   }, [id]);
 
+  // Sınıf değerini normalize et ("5. Sınıf" -> "5", "6. snıf" -> "6", vb.)
+  const normalizeLevel = (level) => {
+    if (!level) return '';
+    const match = level.toString().match(/^(\d+)/);
+    return match ? match[1] : level;
+  };
+
   const fetchStudent = async () => {
     try {
       const response = await apiClient.get(`/students/${id}`);
@@ -56,7 +63,7 @@ const AdminStudentForm = () => {
         name: response.data.name,
         parent_name: response.data.parent_name,
         phone: response.data.phone,
-        level: response.data.level,
+        level: normalizeLevel(response.data.level),
         payment_freq: response.data.payment_freq,
         notes: response.data.notes || '',
         bank_account_id: response.data.bank_account_id || ''
