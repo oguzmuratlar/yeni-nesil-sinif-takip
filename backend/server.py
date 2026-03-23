@@ -873,6 +873,65 @@ async def delete_student_group(group_id: str, current_user: User = Depends(get_c
         raise HTTPException(status_code=404, detail="Group not found")
     return {"message": "Group deleted successfully"}
 
+@api_router.post("/student-groups/{group_id}/add-student")
+async def add_student_to_group(group_id: str, student_id: str, current_user: User = Depends(get_current_user)):
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can modify groups")
+    
+    group = await db.student_groups.find_one({"id": group_id})
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    student_ids = group.get("student_ids", [])
+    if student_id not in student_ids:
+        student_ids.append(student_id)
+        await db.student_groups.update_one({"id": group_id}, {"$set": {"student_ids": student_ids}})
+    
+    return {"message": "Student added to group successfully"}
+
+@api_router.post("/student-groups/{group_id}/remove-student")
+async def remove_student_from_group(group_id: str, student_id: str, current_user: User = Depends(get_current_user)):
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can modify groups")
+    
+    group = await db.student_groups.find_one({"id": group_id})
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    student_ids = group.get("student_ids", [])
+    if student_id in student_ids:
+        student_ids.remove(student_id)
+        await db.student_groups.update_one({"id": group_id}, {"$set": {"student_ids": student_ids}})
+    
+    return {"message": "Student removed from group successfully"}
+
+@api_router.get("/student-groups/by-student/{student_id}")
+async def get_groups_by_student(student_id: str, current_user: User = Depends(get_current_user)):
+    """Öğrencinin dahil olduğu grupları getir"""
+    groups = await db.student_groups.find(
+        {"student_ids": student_id},
+        {"_id": 0}
+    ).to_list(100)
+    for group in groups:
+        if isinstance(group.get('created_at'), str):
+            group['created_at'] = datetime.fromisoformat(group['created_at'])
+    return groups
+
+@api_router.get("/teacher-groups/{teacher_id}")
+async def get_teacher_groups(teacher_id: str, current_user: User = Depends(get_current_user)):
+    """Öğretmenin gruplarını getir"""
+    if current_user.user_type == "teacher" and current_user.teacher_id != teacher_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    groups = await db.student_groups.find(
+        {"teacher_id": teacher_id},
+        {"_id": 0}
+    ).to_list(100)
+    for group in groups:
+        if isinstance(group.get('created_at'), str):
+            group['created_at'] = datetime.fromisoformat(group['created_at'])
+    return groups
+
 # ============= GROUP LESSON ENTRY =============
 
 @api_router.post("/group-lessons")
@@ -938,6 +997,77 @@ async def create_group_lesson(
             created_lessons.append(lesson)
     
     return {"message": f"Created {len(created_lessons)} lessons for group", "count": len(created_lessons)}
+
+# ============= GROUP PLANNED LESSON =============
+
+class GroupPlannedLessonCreate(BaseModel):
+    group_id: str
+    dates: str  # Comma-separated dates
+    number_of_lessons: int
+    month: str
+
+@api_router.post("/group-planned-lessons")
+async def create_group_planned_lesson(data: GroupPlannedLessonCreate, current_user: User = Depends(get_current_user)):
+    """Grup için planlı ders oluştur - tüm öğrencilere yazar"""
+    group = await db.student_groups.find_one({"id": data.group_id}, {"_id": 0})
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    if current_user.user_type == "teacher" and group.get("teacher_id") != current_user.teacher_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    created_plans = []
+    for student_id in group["student_ids"]:
+        # Find student course for this branch and teacher
+        course = await db.student_courses.find_one({
+            "student_id": student_id,
+            "branch_id": group["branch_id"],
+            "teacher_id": group.get("teacher_id")
+        }, {"_id": 0})
+        
+        if course:
+            planned = PlannedLesson(
+                student_course_id=course["id"],
+                dates=data.dates,
+                number_of_lessons=data.number_of_lessons,
+                month=data.month
+            )
+            doc = planned.model_dump()
+            doc['created_at'] = doc['created_at'].isoformat()
+            await db.planned_lessons.insert_one(doc)
+            created_plans.append(planned)
+    
+    return {"message": f"Created {len(created_plans)} planned lessons for group", "count": len(created_plans)}
+
+@api_router.get("/all-planned-lessons")
+async def get_all_planned_lessons(month: Optional[str] = None, current_user: User = Depends(get_current_user)):
+    """Tüm planlı dersleri detaylı bilgiyle getir (Aylık Program için)"""
+    query = {}
+    if month:
+        query["month"] = month
+    
+    planned = await db.planned_lessons.find(query, {"_id": 0}).to_list(10000)
+    
+    # Enrich with course, student, teacher, branch info
+    enriched = []
+    for pl in planned:
+        course = await db.student_courses.find_one({"id": pl["student_course_id"]}, {"_id": 0})
+        if course:
+            student = await db.students.find_one({"id": course["student_id"]}, {"_id": 0})
+            teacher = await db.teachers.find_one({"id": course["teacher_id"]}, {"_id": 0})
+            branch = await db.branches.find_one({"id": course["branch_id"]}, {"_id": 0})
+            
+            enriched.append({
+                **pl,
+                "student_name": student["name"] if student else "Bilinmiyor",
+                "teacher_name": teacher["name"] if teacher else "Bilinmiyor",
+                "branch_name": branch["name"] if branch else "Bilinmiyor",
+                "student_id": course["student_id"],
+                "teacher_id": course["teacher_id"],
+                "branch_id": course["branch_id"]
+            })
+    
+    return enriched
 
 # ============= INIT DATA ROUTE =============
 

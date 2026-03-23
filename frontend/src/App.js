@@ -39,6 +39,8 @@ import TeacherStudentProfile from "./pages/teacher/TeacherStudentProfile";
 import TeacherStudentLessons from "./pages/teacher/TeacherStudentLessons";
 import TeacherStudentPlannedLessons from "./pages/teacher/TeacherStudentPlannedLessons";
 import TeacherBalance from "./pages/teacher/TeacherBalance";
+import TeacherGroupLessons from "./pages/teacher/TeacherGroupLessons";
+import TeacherGroupPlannedLessons from "./pages/teacher/TeacherGroupPlannedLessons";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -207,6 +209,16 @@ function App() {
             <Route path="/teacher/balance" element={
               <ProtectedRoute requiredRole="teacher">
                 <TeacherBalance />
+              </ProtectedRoute>
+            } />
+            <Route path="/teacher/groups/:groupId/lessons" element={
+              <ProtectedRoute requiredRole="teacher">
+                <TeacherGroupLessons />
+              </ProtectedRoute>
+            } />
+            <Route path="/teacher/groups/:groupId/planned-lessons" element={
+              <ProtectedRoute requiredRole="teacher">
+                <TeacherGroupPlannedLessons />
               </ProtectedRoute>
             } />
           </Routes>

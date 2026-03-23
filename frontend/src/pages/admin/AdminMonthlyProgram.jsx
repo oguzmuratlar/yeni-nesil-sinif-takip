@@ -1,44 +1,51 @@
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '../../components/layouts/AdminLayout';
 import apiClient from '../../api/axios';
-import { Calendar, Download } from 'lucide-react';
+import { Calendar, Filter, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { Button } from '../../components/ui/button';
 
 const AdminMonthlyProgram = () => {
-  const [students, setStudents] = useState([]);
-  const [courses, setCourses] = useState([]);
-  const [lessons, setLessons] = useState([]);
   const [plannedLessons, setPlannedLessons] = useState([]);
-  const [payments, setPayments] = useState([]);
-  const [branches, setBranches] = useState([]);
   const [teachers, setTeachers] = useState([]);
+  const [branches, setBranches] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().substring(0, 7));
+  const [selectedTeacher, setSelectedTeacher] = useState('all');
+  const [selectedBranch, setSelectedBranch] = useState('all');
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState('list'); // 'list' or 'calendar'
+
+  const months = [
+    { value: '2024-12', label: 'Aralık 2024' },
+    { value: '2025-01', label: 'Ocak 2025' },
+    { value: '2025-02', label: 'Şubat 2025' },
+    { value: '2025-03', label: 'Mart 2025' },
+    { value: '2025-04', label: 'Nisan 2025' },
+    { value: '2025-05', label: 'Mayıs 2025' },
+    { value: '2025-06', label: 'Haziran 2025' },
+    { value: '2026-01', label: 'Ocak 2026' },
+    { value: '2026-02', label: 'Şubat 2026' },
+    { value: '2026-03', label: 'Mart 2026' },
+    { value: '2026-04', label: 'Nisan 2026' },
+  ];
 
   useEffect(() => {
     fetchData();
   }, [selectedMonth]);
 
   const fetchData = async () => {
+    setLoading(true);
     try {
-      const [studentsRes, coursesRes, lessonsRes, plannedRes, paymentsRes, branchesRes, teachersRes] = await Promise.all([
-        apiClient.get('/students'),
-        apiClient.get('/student-courses'),
-        apiClient.get('/lessons'),
-        apiClient.get('/planned-lessons'),
-        apiClient.get('/payments'),
-        apiClient.get('/branches'),
-        apiClient.get('/teachers')
+      const [plannedRes, teachersRes, branchesRes] = await Promise.all([
+        apiClient.get(`/all-planned-lessons?month=${selectedMonth}`),
+        apiClient.get('/teachers'),
+        apiClient.get('/branches')
       ]);
       
-      setStudents(studentsRes.data.filter(s => s.status === 'active'));
-      setCourses(coursesRes.data);
-      setLessons(lessonsRes.data);
-      setPlannedLessons(plannedRes.data.filter(p => p.month === selectedMonth));
-      setPayments(paymentsRes.data.filter(p => p.date.startsWith(selectedMonth)));
-      setBranches(branchesRes.data);
+      setPlannedLessons(plannedRes.data);
       setTeachers(teachersRes.data);
+      setBranches(branchesRes.data);
     } catch (error) {
       toast.error('Veriler yüklenemedi');
     } finally {
@@ -46,48 +53,38 @@ const AdminMonthlyProgram = () => {
     }
   };
 
-  const getStudentCourses = (studentId) => {
-    return courses.filter(c => c.student_id === studentId);
-  };
+  // Filter planned lessons
+  const filteredLessons = plannedLessons.filter(pl => {
+    if (selectedTeacher !== 'all' && pl.teacher_id !== selectedTeacher) return false;
+    if (selectedBranch !== 'all' && pl.branch_id !== selectedBranch) return false;
+    return true;
+  });
 
-  const getCourseLessons = (courseId) => {
-    return lessons.filter(l => l.student_course_id === courseId && l.date.startsWith(selectedMonth));
-  };
+  // Group by teacher for better visualization
+  const groupedByTeacher = filteredLessons.reduce((acc, pl) => {
+    const teacherName = pl.teacher_name || 'Bilinmiyor';
+    if (!acc[teacherName]) {
+      acc[teacherName] = [];
+    }
+    acc[teacherName].push(pl);
+    return acc;
+  }, {});
 
-  const getStudentPayments = (studentId) => {
-    return payments.filter(p => p.student_id === studentId && p.payment_type === 'student_payment');
-  };
-
-  const calculateMonthlyTotal = (studentId) => {
-    const studentCourses = getStudentCourses(studentId);
-    let total = 0;
-    studentCourses.forEach(course => {
-      const courseLessons = getCourseLessons(course.id);
-      courseLessons.forEach(lesson => {
-        total += course.price * lesson.number_of_lessons;
-      });
+  // Get all unique dates from planned lessons
+  const getAllDates = () => {
+    const dates = new Set();
+    filteredLessons.forEach(pl => {
+      if (pl.dates) {
+        pl.dates.split(',').forEach(d => dates.add(d.trim()));
+      }
     });
-    return total;
+    return Array.from(dates).sort();
   };
 
-  const calculateTeacherExpenses = () => {
-    const teacherExpenses = {};
-    teachers.forEach(teacher => {
-      const teacherPayments = payments.filter(p => 
-        p.teacher_id === teacher.id && p.payment_type === 'teacher_payment'
-      );
-      teacherExpenses[teacher.id] = {
-        name: teacher.name,
-        amount: teacherPayments.reduce((sum, p) => sum + p.amount, 0)
-      };
-    });
-    return Object.values(teacherExpenses);
-  };
-
-  const totalRevenue = students.reduce((sum, s) => sum + calculateMonthlyTotal(s.id), 0);
-  const totalPaymentsReceived = payments.filter(p => p.payment_type === 'student_payment').reduce((sum, p) => sum + p.amount, 0);
-  const teacherExpenses = calculateTeacherExpenses();
-  const totalTeacherExpense = teacherExpenses.reduce((sum, t) => sum + t.amount, 0);
+  // Summary calculations
+  const totalPlannedLessons = filteredLessons.reduce((sum, pl) => sum + pl.number_of_lessons, 0);
+  const uniqueStudents = new Set(filteredLessons.map(pl => pl.student_id)).size;
+  const uniqueTeachers = new Set(filteredLessons.map(pl => pl.teacher_id)).size;
 
   return (
     <AdminLayout>
@@ -97,107 +94,213 @@ const AdminMonthlyProgram = () => {
             <h1 className="text-4xl font-extrabold text-slate-800 mb-2" data-testid="admin-monthly-program-title">
               Aylık Program
             </h1>
-            <p className="text-slate-600">Aylık ders ve ödeme özeti</p>
+            <p className="text-slate-600">Tüm öğretmenlerin ders planlamaları</p>
           </div>
-          <div className="flex items-center gap-4">
+        </div>
+
+        {/* Filters */}
+        <div className="admin-card p-6 mb-8">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Filter size={18} className="text-slate-500" />
+              <span className="text-sm font-medium text-slate-700">Filtreler:</span>
+            </div>
+            
             <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-              <SelectTrigger className="w-48">
-                <SelectValue />
+              <SelectTrigger className="w-44">
+                <SelectValue placeholder="Ay seçin" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="2024-12">Aralık 2024</SelectItem>
-                <SelectItem value="2025-01">Ocak 2025</SelectItem>
-                <SelectItem value="2025-02">Şubat 2025</SelectItem>
-                <SelectItem value="2025-03">Mart 2025</SelectItem>
+                {months.map(m => (
+                  <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
+
+            <Select value={selectedTeacher} onValueChange={setSelectedTeacher}>
+              <SelectTrigger className="w-44">
+                <SelectValue placeholder="Öğretmen" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tüm Öğretmenler</SelectItem>
+                {teachers.map(t => (
+                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+              <SelectTrigger className="w-44">
+                <SelectValue placeholder="Branş" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tüm Branşlar</SelectItem>
+                {branches.map(b => (
+                  <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <div className="ml-auto flex gap-2">
+              <Button 
+                variant={viewMode === 'list' ? 'default' : 'outline'} 
+                size="sm"
+                onClick={() => setViewMode('list')}
+              >
+                Liste
+              </Button>
+              <Button 
+                variant={viewMode === 'calendar' ? 'default' : 'outline'} 
+                size="sm"
+                onClick={() => setViewMode('calendar')}
+              >
+                Takvim
+              </Button>
+            </div>
           </div>
         </div>
 
-        {/* Özet Kartlar */}
+        {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="admin-card p-6">
-            <p className="text-sm text-slate-500 mb-1">Toplam Ciro</p>
-            <p className="text-3xl font-bold text-blue-600">{totalRevenue.toFixed(2)} ₺</p>
+            <p className="text-sm text-slate-500 mb-1">Planlanan Ders</p>
+            <p className="text-3xl font-bold text-blue-600">{totalPlannedLessons}</p>
           </div>
           <div className="admin-card p-6">
-            <p className="text-sm text-slate-500 mb-1">Yapılan Ödeme</p>
-            <p className="text-3xl font-bold text-green-600">{totalPaymentsReceived.toFixed(2)} ₺</p>
+            <p className="text-sm text-slate-500 mb-1">Öğrenci Sayısı</p>
+            <p className="text-3xl font-bold text-green-600">{uniqueStudents}</p>
           </div>
           <div className="admin-card p-6">
-            <p className="text-sm text-slate-500 mb-1">Hoca Gideri</p>
-            <p className="text-3xl font-bold text-orange-600">{totalTeacherExpense.toFixed(2)} ₺</p>
+            <p className="text-sm text-slate-500 mb-1">Öğretmen Sayısı</p>
+            <p className="text-3xl font-bold text-purple-600">{uniqueTeachers}</p>
           </div>
           <div className="admin-card p-6">
-            <p className="text-sm text-slate-500 mb-1">Net Kar</p>
-            <p className="text-3xl font-bold text-purple-600">
-              {(totalPaymentsReceived - totalTeacherExpense).toFixed(2)} ₺
+            <p className="text-sm text-slate-500 mb-1">Planlama Kaydı</p>
+            <p className="text-3xl font-bold text-orange-600">{filteredLessons.length}</p>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="text-center py-12">
+            <p className="text-slate-600">Yükleniyor...</p>
+          </div>
+        ) : filteredLessons.length === 0 ? (
+          <div className="admin-card p-12 text-center">
+            <Calendar size={48} className="mx-auto mb-4 text-slate-400" />
+            <p className="text-slate-600 text-lg">Bu dönem için planlı ders bulunamadı</p>
+            <p className="text-slate-500 text-sm mt-2">
+              Öğretmenler ders planlaması yaptığında burada görünecektir
             </p>
           </div>
-        </div>
-
-        {/* Öğrenci Tablosu */}
-        <div className="admin-card p-6 mb-8">
-          <h2 className="text-xl font-bold text-slate-800 mb-4">Öğrenci Detayları</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-3 px-2">Öğrenci</th>
-                  <th className="text-left py-3 px-2">Veli</th>
-                  <th className="text-left py-3 px-2">Aldığı Dersler</th>
-                  <th className="text-right py-3 px-2">Ödeyeceği</th>
-                  <th className="text-right py-3 px-2">Ödedi</th>
-                  <th className="text-right py-3 px-2">Kalan</th>
-                </tr>
-              </thead>
-              <tbody>
-                {students.map(student => {
-                  const studentCourses = getStudentCourses(student.id);
-                  const monthlyTotal = calculateMonthlyTotal(student.id);
-                  const studentPayments = getStudentPayments(student.id);
-                  const totalPaid = studentPayments.reduce((sum, p) => sum + p.amount, 0);
-                  const remaining = monthlyTotal - totalPaid;
-
-                  return (
-                    <tr key={student.id} className="border-b hover:bg-slate-50">
-                      <td className="py-3 px-2">{student.name}</td>
-                      <td className="py-3 px-2">{student.parent_name}</td>
-                      <td className="py-3 px-2">
-                        <div className="flex flex-wrap gap-1">
-                          {studentCourses.map(course => {
-                            const branch = branches.find(b => b.id === course.branch_id);
-                            return (
-                              <span key={course.id} className="text-xs bg-slate-100 px-2 py-1 rounded">
-                                {branch?.name}
+        ) : viewMode === 'list' ? (
+          /* List View - Grouped by Teacher */
+          <div className="space-y-6">
+            {Object.entries(groupedByTeacher).map(([teacherName, lessons]) => (
+              <div key={teacherName} className="admin-card p-6">
+                <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                  <Users size={20} className="text-blue-600" />
+                  {teacherName}
+                  <span className="text-sm font-normal text-slate-500">
+                    ({lessons.length} planlama, {lessons.reduce((s, l) => s + l.number_of_lessons, 0)} ders)
+                  </span>
+                </h2>
+                
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-3 px-2 text-sm font-semibold text-slate-600">Öğrenci</th>
+                        <th className="text-left py-3 px-2 text-sm font-semibold text-slate-600">Branş</th>
+                        <th className="text-left py-3 px-2 text-sm font-semibold text-slate-600">Tarihler</th>
+                        <th className="text-center py-3 px-2 text-sm font-semibold text-slate-600">Ders Sayısı</th>
+                        <th className="text-center py-3 px-2 text-sm font-semibold text-slate-600">Mesaj</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lessons.map((pl) => (
+                        <tr key={pl.id} className="border-b hover:bg-slate-50">
+                          <td className="py-3 px-2 font-medium">{pl.student_name}</td>
+                          <td className="py-3 px-2">
+                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                              {pl.branch_name}
+                            </span>
+                          </td>
+                          <td className="py-3 px-2 text-sm text-slate-600">
+                            {pl.dates ? pl.dates.split(',').map((d, i) => (
+                              <span key={i} className="inline-block bg-slate-100 px-2 py-0.5 rounded mr-1 mb-1">
+                                {d.trim()}
                               </span>
-                            );
-                          })}
-                        </div>
-                      </td>
-                      <td className="text-right py-3 px-2 font-semibold">{monthlyTotal.toFixed(2)} ₺</td>
-                      <td className="text-right py-3 px-2 text-green-600">{totalPaid.toFixed(2)} ₺</td>
-                      <td className="text-right py-3 px-2 text-orange-600">{remaining.toFixed(2)} ₺</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Öğretmen Ödemeler */}
-        <div className="admin-card p-6">
-          <h2 className="text-xl font-bold text-slate-800 mb-4">Öğretmen Ödemeleri</h2>
-          <div className="space-y-3">
-            {teacherExpenses.map((teacher, index) => (
-              <div key={index} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-                <span className="font-semibold text-slate-800">{teacher.name}</span>
-                <span className="font-bold text-orange-600">{teacher.amount.toFixed(2)} ₺</span>
+                            )) : '-'}
+                          </td>
+                          <td className="py-3 px-2 text-center">
+                            <span className="font-bold text-blue-600">{pl.number_of_lessons}</span>
+                          </td>
+                          <td className="py-3 px-2 text-center">
+                            {pl.messaged ? (
+                              <span className="text-green-600 text-xs">✓ Gönderildi</span>
+                            ) : (
+                              <span className="text-slate-400 text-xs">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             ))}
           </div>
-        </div>
+        ) : (
+          /* Calendar View */
+          <div className="admin-card p-6">
+            <h2 className="text-xl font-bold text-slate-800 mb-4">Takvim Görünümü</h2>
+            
+            <div className="overflow-x-auto">
+              <div className="grid grid-cols-7 gap-2 min-w-[800px]">
+                {/* Day headers */}
+                {['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'].map(day => (
+                  <div key={day} className="text-center font-semibold text-slate-600 py-2">
+                    {day}
+                  </div>
+                ))}
+                
+                {/* Calendar cells */}
+                {getAllDates().map(date => {
+                  const dayLessons = filteredLessons.filter(pl => 
+                    pl.dates && pl.dates.split(',').map(d => d.trim()).includes(date)
+                  );
+                  const totalForDay = dayLessons.reduce((s, l) => s + l.number_of_lessons, 0);
+                  
+                  return (
+                    <div 
+                      key={date} 
+                      className={`min-h-[100px] p-2 rounded-lg border ${
+                        dayLessons.length > 0 ? 'bg-blue-50 border-blue-200' : 'bg-slate-50 border-slate-200'
+                      }`}
+                    >
+                      <p className="font-semibold text-slate-800 text-sm mb-1">{date}</p>
+                      {dayLessons.length > 0 && (
+                        <>
+                          <p className="text-xs text-blue-600 font-medium">{totalForDay} ders</p>
+                          <div className="mt-1 space-y-0.5">
+                            {dayLessons.slice(0, 3).map((pl, i) => (
+                              <p key={i} className="text-xs text-slate-600 truncate">
+                                {pl.student_name}
+                              </p>
+                            ))}
+                            {dayLessons.length > 3 && (
+                              <p className="text-xs text-slate-400">+{dayLessons.length - 3} daha</p>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </AdminLayout>
   );
