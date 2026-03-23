@@ -1,0 +1,120 @@
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import AdminLayout from '../../components/layouts/AdminLayout';
+import { Users, GraduationCap, CreditCard, TrendingUp, ArrowRight } from 'lucide-react';
+
+const AdminDashboard = () => {
+  const navigate = useNavigate();
+
+  const cards = [
+    {
+      title: 'Öğrenciler',
+      description: 'Öğrenci yönetimi ve ders takibi',
+      icon: Users,
+      color: 'bg-blue-500',
+      path: '/admin/students',
+      testId: 'admin-dashboard-students-card'
+    },
+    {
+      title: 'Öğretmenler',
+      description: 'Öğretmen profilleri ve ödemeler',
+      icon: GraduationCap,
+      color: 'bg-orange-500',
+      path: '/admin/teachers',
+      testId: 'admin-dashboard-teachers-card'
+    },
+    {
+      title: 'Ödemeler',
+      description: 'Gelen ve giden ödeme takibi',
+      icon: CreditCard,
+      color: 'bg-green-500',
+      path: '/admin/payments',
+      testId: 'admin-dashboard-payments-card'
+    },
+    {
+      title: 'Aylık Program',
+      description: 'Ders ve ödeme planları',
+      icon: TrendingUp,
+      color: 'bg-purple-500',
+      path: '/admin/monthly-program',
+      testId: 'admin-dashboard-monthly-card'
+    },
+  ];
+
+  return (
+    <AdminLayout>
+      <div>
+        <div className="mb-8">
+          <h1 className="text-4xl font-extrabold text-slate-800 mb-2" data-testid="admin-dashboard-title">
+            Yönetim Paneli
+          </h1>
+          <p className="text-slate-600">
+            Eğitim merkezinizi yönetin
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {cards.map((card) => {
+            const Icon = card.icon;
+            return (
+              <div
+                key={card.path}
+                onClick={() => navigate(card.path)}
+                data-testid={card.testId}
+                className="admin-card p-6 cursor-pointer group hover:scale-105 transition-all duration-200"
+              >
+                <div className={`${card.color} w-12 h-12 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+                  <Icon size={24} className="text-white" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-800 mb-2">{card.title}</h3>
+                <p className="text-slate-600 text-sm mb-4">{card.description}</p>
+                <div className="flex items-center gap-2 text-blue-600 font-semibold text-sm group-hover:gap-3 transition-all">
+                  <span>Görüntüle</span>
+                  <ArrowRight size={16} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="admin-card p-8">
+            <h3 className="text-2xl font-bold text-slate-800 mb-4">Hızlı İşlemler</h3>
+            <div className="space-y-3">
+              <button
+                onClick={() => navigate('/admin/students/new')}
+                data-testid="quick-add-student-btn"
+                className="w-full text-left px-4 py-3 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors text-blue-700 font-medium"
+              >
+                + Yeni Öğrenci Ekle
+              </button>
+              <button
+                onClick={() => navigate('/admin/teachers/new')}
+                data-testid="quick-add-teacher-btn"
+                className="w-full text-left px-4 py-3 bg-orange-50 hover:bg-orange-100 rounded-lg transition-colors text-orange-700 font-medium"
+              >
+                + Yeni Öğretmen Ekle
+              </button>
+              <button
+                onClick={() => navigate('/admin/users/new')}
+                data-testid="quick-add-user-btn"
+                className="w-full text-left px-4 py-3 bg-green-50 hover:bg-green-100 rounded-lg transition-colors text-green-700 font-medium"
+              >
+                + Yeni Kullanıcı Ekle
+              </button>
+            </div>
+          </div>
+
+          <div className="admin-card p-8 bg-gradient-to-br from-blue-50 to-indigo-50">
+            <h3 className="text-2xl font-bold text-slate-800 mb-2">🚀 Hoş Geldiniz!</h3>
+            <p className="text-slate-600">
+              Eğitim yönetim sisteminize hoş geldiniz. Sol menüden istediğiniz bölüme hızlıca erişebilirsiniz.
+            </p>
+          </div>
+        </div>
+      </div>
+    </AdminLayout>
+  );
+};
+
+export default AdminDashboard;
