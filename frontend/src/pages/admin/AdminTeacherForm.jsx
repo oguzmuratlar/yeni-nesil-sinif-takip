@@ -62,7 +62,35 @@ const AdminTeacherForm = () => {
   const fetchTeacher = async () => {
     try {
       const response = await apiClient.get(`/teachers/${id}`);
-      setFormData(response.data);
+      const teacherData = response.data;
+      
+      if (isEdit) {
+        // Load teacher prices
+        const pricesRes = await apiClient.get(`/teacher-prices?teacher_id=${id}`);
+        const prices = pricesRes.data;
+        
+        // Group by branch
+        const branchGroups = {};
+        prices.forEach(price => {
+          if (!branchGroups[price.branch_id]) {
+            branchGroups[price.branch_id] = { branch_id: price.branch_id };
+          }
+          if (price.group_size) {
+            branchGroups[price.branch_id][`group_${price.group_size}`] = price.price;
+          } else {
+            branchGroups[price.branch_id].birebir_price = price.price;
+          }
+        });
+        
+        setFormData({
+          ...teacherData,
+          username: '',
+          password: '',
+          branches: Object.values(branchGroups)
+        });
+      } else {
+        setFormData(response.data);
+      }
     } catch (error) {
       toast.error('Öğretmen bilgileri yüklenemedi');
     }

@@ -85,6 +85,11 @@ function App() {
                 <AdminStudentProfile />
               </ProtectedRoute>
             } />
+            <Route path="/admin/students/:id/edit" element={
+              <ProtectedRoute requiredRole="admin">
+                <AdminStudentForm />
+              </ProtectedRoute>
+            } />
             <Route path="/admin/students/:id/lessons/:courseId" element={
               <ProtectedRoute requiredRole="admin">
                 <AdminStudentLessons />
@@ -109,6 +114,11 @@ function App() {
             <Route path="/admin/teachers/:id" element={
               <ProtectedRoute requiredRole="admin">
                 <AdminTeacherProfile />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/teachers/:id/edit" element={
+              <ProtectedRoute requiredRole="admin">
+                <AdminTeacherForm />
               </ProtectedRoute>
             } />
             <Route path="/admin/teachers/:id/balance" element={

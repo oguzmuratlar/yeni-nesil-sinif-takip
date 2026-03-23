@@ -5,28 +5,46 @@ import apiClient from '../../api/axios';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Plus, Search, Book, Calendar } from 'lucide-react';
-import { toast } from 'sonner';
+import { Badge } from '../../components/ui/badge';
 
 const AdminStudents = () => {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [showInactive, setShowInactive] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchStudents();
-  }, []);
+  }, [showInactive]);
 
   const fetchStudents = async () => {
     try {
       const response = await apiClient.get('/students');
-      setStudents(response.data);
+      const filtered = showInactive 
+        ? response.data 
+        : response.data.filter(s => s.status === 'active');
+      setStudents(filtered);
     } catch (error) {
       toast.error('Öğrenciler yüklenemedi');
       console.error('Error fetching students:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const toggleStudentStatus = async (studentId, currentStatus) => {
+    try {
+      const student = students.find(s => s.id === studentId);
+      await apiClient.put(`/students/${studentId}`, {
+        ...student,
+        status: currentStatus === 'active' ? 'inactive' : 'active'
+      });
+      toast.success(currentStatus === 'active' ? 'Öğrenci pasifleştirildi' : 'Öğrenci aktifleştirildi');
+      fetchStudents();
+    } catch (error) {
+      toast.error('İşlem başarısız');
     }
   };
 
@@ -56,16 +74,25 @@ const AdminStudents = () => {
         </div>
 
         <div className="admin-card p-6 mb-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-            <Input
-              type="text"
-              placeholder="Öğrenci veya veli adı ile ara..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              data-testid="student-search-input"
-              className="pl-10 h-12"
-            />
+          <div className="flex items-center justify-between">
+            <div className="relative flex-1 mr-4">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+              <Input
+                type="text"
+                placeholder="Öğrenci veya veli adı ile ara..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                data-testid="student-search-input"
+                className="pl-10 h-12"
+              />
+            </div>
+            <Button
+              onClick={() => setShowInactive(!showInactive)}
+              variant={showInactive ? "default" : "outline"}
+              data-testid="toggle-inactive-btn"
+            >
+              {showInactive ? 'Sadece Aktifler' : 'Pasifleri Göster'}
+            </Button>
           </div>
         </div>
 
@@ -88,7 +115,12 @@ const AdminStudents = () => {
               >
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
-                    <h3 className="text-xl font-bold text-slate-800 mb-1">{student.name}</h3>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="text-xl font-bold text-slate-800">{student.name}</h3>
+                      <Badge variant={student.status === 'active' ? 'default' : 'secondary'}>
+                        {student.status === 'active' ? 'Aktif' : 'Pasif'}
+                      </Badge>
+                    </div>
                     <div className="flex items-center gap-4 text-sm text-slate-600">
                       <span>Veli: {student.parent_name}</span>
                       <span>•</span>
@@ -110,22 +142,24 @@ const AdminStudents = () => {
                       Profil
                     </Button>
                     <Button
-                      onClick={async (e) => {
+                      onClick={(e) => {
                         e.stopPropagation();
-                        if (window.confirm('Bu öğrenciyi silmek istediğinizden emin misiniz?')) {
-                          try {
-                            await apiClient.delete(`/students/${student.id}`);
-                            toast.success('Öğrenci silindi');
-                            fetchStudents();
-                          } catch (error) {
-                            toast.error('Silme başarısız');
-                          }
-                        }
+                        navigate(`/admin/students/${student.id}/edit`);
                       }}
-                      variant="destructive"
+                      variant="outline"
                       size="sm"
                     >
-                      Sil
+                      Düzenle
+                    </Button>
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleStudentStatus(student.id, student.status);
+                      }}
+                      variant={student.status === 'active' ? 'destructive' : 'default'}
+                      size="sm"
+                    >
+                      {student.status === 'active' ? 'Pasifleştir' : 'Aktifleştir'}
                     </Button>
                   </div>
                 </div>

@@ -12,16 +12,20 @@ const AdminTeachers = () => {
   const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showInactive, setShowInactive] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchTeachers();
-  }, []);
+  }, [showInactive]);
 
   const fetchTeachers = async () => {
     try {
       const response = await apiClient.get('/teachers');
-      setTeachers(response.data);
+      const filtered = showInactive 
+        ? response.data 
+        : response.data.filter(t => t.status === 'active');
+      setTeachers(filtered);
     } catch (error) {
       toast.error('Öğretmenler yüklenemedi');
     } finally {
@@ -68,16 +72,24 @@ const AdminTeachers = () => {
         </div>
 
         <div className="admin-card p-6 mb-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-            <Input
-              type="text"
-              placeholder="Öğretmen adı ile ara..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              data-testid="teacher-search-input"
-              className="pl-10 h-12"
-            />
+          <div className="flex items-center justify-between">
+            <div className="relative flex-1 mr-4">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+              <Input
+                type="text"
+                placeholder="Öğretmen adı ile ara..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                data-testid="teacher-search-input"
+                className="pl-10 h-12"
+              />
+            </div>
+            <Button
+              onClick={() => setShowInactive(!showInactive)}
+              variant={showInactive ? "default" : "outline"}
+            >
+              {showInactive ? 'Sadece Aktifler' : 'Pasifleri Göster'}
+            </Button>
           </div>
         </div>
 
@@ -115,6 +127,13 @@ const AdminTeachers = () => {
                       size="sm"
                     >
                       Profil
+                    </Button>
+                    <Button
+                      onClick={() => navigate(`/admin/teachers/${teacher.id}/edit`)}
+                      variant="outline"
+                      size="sm"
+                    >
+                      Düzenle
                     </Button>
                     <Button
                       onClick={() => navigate(`/admin/teachers/${teacher.id}/balance`)}

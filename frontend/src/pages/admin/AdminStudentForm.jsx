@@ -182,26 +182,31 @@ const AdminStudentForm = () => {
 
               <div className="space-y-2">
                 <Label htmlFor="level">Sınıf *</Label>
-                <Input
-                  id="level"
-                  value={formData.level}
-                  onChange={(e) => setFormData({ ...formData, level: e.target.value })}
-                  placeholder="Örn: 9. Sınıf"
-                  required
-                  data-testid="level-input"
-                />
+                <Select value={formData.level} onValueChange={(value) => setFormData({ ...formData, level: value })}>
+                  <SelectTrigger data-testid="level-select">
+                    <SelectValue placeholder="Sınıf seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">5. Sınıf</SelectItem>
+                    <SelectItem value="6">6. Sınıf</SelectItem>
+                    <SelectItem value="7">7. Sınıf</SelectItem>
+                    <SelectItem value="8">8. Sınıf</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="payment_freq">Ödeme Sıklığı (Gün) *</Label>
+                <Label htmlFor="payment_freq">Ödeme Günü *</Label>
                 <Input
                   id="payment_freq"
                   type="number"
                   value={formData.payment_freq}
                   onChange={(e) => setFormData({ ...formData, payment_freq: e.target.value })}
+                  placeholder="Örn: 1, 15"
                   required
                   data-testid="payment-freq-input"
                 />
+                <p className="text-xs text-slate-500">Ayın kaçında ödeme yapacak (1-31 arası)</p>
               </div>
 
               <div className="space-y-2">
