@@ -109,6 +109,24 @@ const AdminStudents = () => {
                     >
                       Profil
                     </Button>
+                    <Button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (window.confirm('Bu öğrenciyi silmek istediğinizden emin misiniz?')) {
+                          try {
+                            await apiClient.delete(`/students/${student.id}`);
+                            toast.success('Öğrenci silindi');
+                            fetchStudents();
+                          } catch (error) {
+                            toast.error('Silme başarısız');
+                          }
+                        }
+                      }}
+                      variant="destructive"
+                      size="sm"
+                    >
+                      Sil
+                    </Button>
                   </div>
                 </div>
               </div>

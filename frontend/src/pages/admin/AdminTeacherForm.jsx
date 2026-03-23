@@ -17,24 +17,42 @@ const AdminTeacherForm = () => {
     phone: '',
     season_id: '',
     username: '',
-    password: ''
+    password: '',
+    branches: [],  // [{branch_id, birebir_price, group_prices: {1, 2, 3, 4}}]
   });
   const [seasons, setSeasons] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [lessonTypes, setLessonTypes] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [branchDialogOpen, setBranchDialogOpen] = useState(false);
+  const [newBranch, setNewBranch] = useState({
+    branch_id: '',
+    birebir_price: '',
+    group_1: '',
+    group_2: '',
+    group_3: '',
+    group_4: ''
+  });
 
   useEffect(() => {
-    fetchSeasons();
+    fetchReferenceData();
     if (isEdit) {
       fetchTeacher();
     }
   }, [id]);
 
-  const fetchSeasons = async () => {
+  const fetchReferenceData = async () => {
     try {
-      const response = await apiClient.get('/seasons');
-      setSeasons(response.data.filter(s => s.status === 'active'));
+      const [seasonsRes, branchesRes, typesRes] = await Promise.all([
+        apiClient.get('/seasons'),
+        apiClient.get('/branches'),
+        apiClient.get('/lesson-types')
+      ]);
+      setSeasons(seasonsRes.data.filter(s => s.status === 'active'));
+      setBranches(branchesRes.data);
+      setLessonTypes(typesRes.data);
     } catch (error) {
-      toast.error('Sezonlar yüklenemedi');
+      toast.error('Veriler yüklenemedi');
     }
   };
 

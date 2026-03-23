@@ -144,7 +144,8 @@ class TeacherPrice(BaseModel):
     teacher_id: str
     branch_id: str
     lesson_type_id: str
-    price: float
+    price: float  # For birebir, this is the price. For group, base price
+    group_size: Optional[int] = None  # 1, 2, 3, 4 for group lessons
     season_id: Optional[str] = None
 
 class TeacherPriceCreate(BaseModel):
@@ -152,7 +153,25 @@ class TeacherPriceCreate(BaseModel):
     branch_id: str
     lesson_type_id: str
     price: float
+    group_size: Optional[int] = None
     season_id: Optional[str] = None
+
+class StudentGroup(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    branch_id: str
+    level: str  # sınıf
+    student_ids: List[str]  # öğrenci ID listesi
+    teacher_id: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class StudentGroupCreate(BaseModel):
+    name: str
+    branch_id: str
+    level: str
+    student_ids: List[str]
+    teacher_id: Optional[str] = None
 
 class StudentCourse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -193,19 +212,17 @@ class PlannedLesson(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     student_course_id: str
-    date: str
+    dates: str  # Comma-separated dates
     number_of_lessons: int
     messaged: bool = False
-    payment_status: str = "pending"
     month: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class PlannedLessonCreate(BaseModel):
     student_course_id: str
-    date: str
+    dates: str  # Comma-separated dates
     number_of_lessons: int
     messaged: bool = False
-    payment_status: str = "pending"
     month: str
 
 class Payment(BaseModel):
@@ -737,12 +754,12 @@ async def get_teacher_balance(teacher_id: str, current_user: User = Depends(get_
         {"_id": 0}
     ).to_list(10000)
     
-    # Calculate earnings
+    # Calculate earnings based on teacher prices
     total_earnings = 0
     for lesson in lessons:
         course = next((c for c in courses if c["id"] == lesson["student_course_id"]), None)
         if course:
-            # Get teacher price
+            # Get teacher price for this course
             teacher_price = await db.teacher_prices.find_one({
                 "teacher_id": teacher_id,
                 "branch_id": course["branch_id"],
@@ -750,7 +767,19 @@ async def get_teacher_balance(teacher_id: str, current_user: User = Depends(get_
             }, {"_id": 0})
             
             if teacher_price:
-                total_earnings += teacher_price["price"] * lesson["number_of_lessons"]
+                # If it's a group lesson, check group_size
+                if teacher_price.get("group_size"):
+                    # Find matching group size price
+                    group_price = await db.teacher_prices.find_one({
+                        "teacher_id": teacher_id,
+                        "branch_id": course["branch_id"],
+                        "lesson_type_id": course["lesson_type_id"],
+                        "group_size": teacher_price.get("group_size")
+                    }, {"_id": 0})
+                    if group_price:
+                        total_earnings += group_price["price"] * lesson["number_of_lessons"]
+                else:
+                    total_earnings += teacher_price["price"] * lesson["number_of_lessons"]
     
     # Get payments made to teacher
     payments = await db.payments.find(
@@ -768,6 +797,96 @@ async def get_teacher_balance(teacher_id: str, current_user: User = Depends(get_
         "balance": balance,
         "payments": payments
     }
+
+# ============= STUDENT GROUP ROUTES =============
+
+@api_router.get("/student-groups", response_model=List[StudentGroup])
+async def get_student_groups(current_user: User = Depends(get_current_user)):
+    groups = await db.student_groups.find({}, {"_id": 0}).to_list(1000)
+    for group in groups:
+        if isinstance(group.get('created_at'), str):
+            group['created_at'] = datetime.fromisoformat(group['created_at'])
+    return groups
+
+@api_router.post("/student-groups", response_model=StudentGroup)
+async def create_student_group(group_data: StudentGroupCreate, current_user: User = Depends(get_current_user)):
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can create groups")
+    
+    group = StudentGroup(**group_data.model_dump())
+    doc = group.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.student_groups.insert_one(doc)
+    return group
+
+@api_router.put("/student-groups/{group_id}", response_model=StudentGroup)
+async def update_student_group(group_id: str, group_data: StudentGroupCreate, current_user: User = Depends(get_current_user)):
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can update groups")
+    
+    existing = await db.student_groups.find_one({"id": group_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    update_data = group_data.model_dump()
+    await db.student_groups.update_one({"id": group_id}, {"$set": update_data})
+    
+    updated = await db.student_groups.find_one({"id": group_id}, {"_id": 0})
+    if isinstance(updated.get('created_at'), str):
+        updated['created_at'] = datetime.fromisoformat(updated['created_at'])
+    return StudentGroup(**updated)
+
+@api_router.delete("/student-groups/{group_id}")
+async def delete_student_group(group_id: str, current_user: User = Depends(get_current_user)):
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can delete groups")
+    
+    result = await db.student_groups.delete_one({"id": group_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Group not found")
+    return {"message": "Group deleted successfully"}
+
+# ============= GROUP LESSON ENTRY =============
+
+@api_router.post("/group-lessons")
+async def create_group_lesson(
+    group_id: str,
+    branch_id: str,
+    date: str,
+    number_of_lessons: int,
+    current_user: User = Depends(get_current_user)
+):
+    # Get group
+    group = await db.student_groups.find_one({"id": group_id}, {"_id": 0})
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    # Check access
+    if current_user.user_type == "teacher" and group.get("teacher_id") != current_user.teacher_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Create lesson for each student in the group
+    created_lessons = []
+    for student_id in group["student_ids"]:
+        # Find student course
+        course = await db.student_courses.find_one({
+            "student_id": student_id,
+            "branch_id": branch_id,
+            "teacher_id": group.get("teacher_id")
+        }, {"_id": 0})
+        
+        if course:
+            lesson = Lesson(
+                student_course_id=course["id"],
+                date=date,
+                number_of_lessons=number_of_lessons
+            )
+            doc = lesson.model_dump()
+            doc['created_at'] = doc['created_at'].isoformat()
+            await db.lessons.insert_one(doc)
+            created_lessons.append(lesson)
+    
+    return {"message": f"Created {len(created_lessons)} lessons for group", "count": len(created_lessons)}
 
 # ============= INIT DATA ROUTE =============
 

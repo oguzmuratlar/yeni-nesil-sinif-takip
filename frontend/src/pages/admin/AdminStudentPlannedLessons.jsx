@@ -18,11 +18,10 @@ const AdminStudentPlannedLessons = () => {
   const [branch, setBranch] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newPlanned, setNewPlanned] = useState({
-    date: '',
+    dates: '',
     number_of_lessons: 1,
     month: '',
-    messaged: false,
-    payment_status: 'pending'
+    messaged: false
   });
 
   useEffect(() => {
@@ -111,14 +110,16 @@ const AdminStudentPlannedLessons = () => {
                 </DialogHeader>
                 <form onSubmit={handleAddPlanned} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="date">Tarih</Label>
+                    <Label htmlFor="dates">Tarihler (virgülle ayırın)</Label>
                     <Input
-                      id="date"
-                      type="date"
-                      value={newPlanned.date}
-                      onChange={(e) => setNewPlanned({ ...newPlanned, date: e.target.value })}
+                      id="dates"
+                      type="text"
+                      value={newPlanned.dates}
+                      onChange={(e) => setNewPlanned({ ...newPlanned, dates: e.target.value })}
+                      placeholder="2024-01-15, 2024-01-22, 2024-01-29"
                       required
                     />
+                    <p className="text-xs text-slate-500">Örnek: 2024-01-15, 2024-01-22</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="month">Ay</Label>
@@ -141,18 +142,6 @@ const AdminStudentPlannedLessons = () => {
                       required
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="payment_status">Ödeme Durumu</Label>
-                    <Select value={newPlanned.payment_status} onValueChange={(value) => setNewPlanned({ ...newPlanned, payment_status: value })}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="pending">Bekliyor</SelectItem>
-                        <SelectItem value="paid">Ödendi</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
                   <div className="flex gap-3">
                     <Button type="submit" className="flex-1">Kaydet</Button>
                     <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>İptal</Button>
@@ -171,11 +160,8 @@ const AdminStudentPlannedLessons = () => {
               {plannedLessons.map((planned) => (
                 <div key={planned.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
                   <div>
-                    <p className="font-semibold text-slate-800">{planned.date} ({planned.month})</p>
-                    <p className="text-sm text-slate-600">
-                      {planned.number_of_lessons} ders • 
-                      {planned.payment_status === 'paid' ? ' Ödendi' : ' Bekliyor'}
-                    </p>
+                    <p className="font-semibold text-slate-800">{planned.dates} ({planned.month})</p>
+                    <p className="text-sm text-slate-600">{planned.number_of_lessons} ders</p>
                   </div>
                   <Button
                     size="sm"
