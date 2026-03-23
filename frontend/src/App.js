@@ -28,6 +28,10 @@ import AdminMonthlyProgram from "./pages/admin/AdminMonthlyProgram";
 import AdminUserForm from "./pages/admin/AdminUserForm";
 import AdminBankAccounts from "./pages/admin/AdminBankAccounts";
 import AdminBankAccountForm from "./pages/admin/AdminBankAccountForm";
+import AdminBranches from "./pages/admin/AdminBranches";
+import AdminGroups from "./pages/admin/AdminGroups";
+import AdminGroupForm from "./pages/admin/AdminGroupForm";
+import AdminGroupLesson from "./pages/admin/AdminGroupLesson";
 
 // Teacher Pages
 import TeacherStudents from "./pages/teacher/TeacherStudents";
@@ -136,6 +140,31 @@ function App() {
             <Route path="/admin/bank-accounts/new" element={
               <ProtectedRoute requiredRole="admin">
                 <AdminBankAccountForm />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/branches" element={
+              <ProtectedRoute requiredRole="admin">
+                <AdminBranches />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/groups" element={
+              <ProtectedRoute requiredRole="admin">
+                <AdminGroups />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/groups/new" element={
+              <ProtectedRoute requiredRole="admin">
+                <AdminGroupForm />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/groups/:id" element={
+              <ProtectedRoute requiredRole="admin">
+                <AdminGroupForm />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/groups/:id/lesson" element={
+              <ProtectedRoute requiredRole="admin">
+                <AdminGroupLesson />
               </ProtectedRoute>
             } />
 

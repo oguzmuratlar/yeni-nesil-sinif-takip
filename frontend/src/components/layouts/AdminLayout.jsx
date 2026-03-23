@@ -9,7 +9,9 @@ import {
   UserPlus, 
   LogOut,
   LayoutDashboard,
-  Landmark
+  Landmark,
+  BookOpen,
+  UsersRound
 } from 'lucide-react';
 
 const AdminLayout = ({ children }) => {
@@ -26,6 +28,8 @@ const AdminLayout = ({ children }) => {
     { path: '/admin/dashboard', label: 'Ana Sayfa', icon: LayoutDashboard },
     { path: '/admin/students', label: 'Öğrenciler', icon: Users },
     { path: '/admin/teachers', label: 'Öğretmenler', icon: GraduationCap },
+    { path: '/admin/groups', label: 'Gruplar', icon: UsersRound },
+    { path: '/admin/branches', label: 'Branşlar', icon: BookOpen },
     { path: '/admin/payments', label: 'Ödemeler', icon: CreditCard },
     { path: '/admin/bank-accounts', label: 'Banka Hesapları', icon: Landmark },
     { path: '/admin/monthly-program', label: 'Aylık Program', icon: Calendar },
