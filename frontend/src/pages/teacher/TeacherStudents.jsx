@@ -78,7 +78,8 @@ const TeacherStudents = () => {
     if (!selectedItem) return;
     
     if (selectedItem.type === 'student') {
-      navigate(`/teacher/students/${selectedItem.data.id}/lessons`);
+      // Navigate to student profile where they can select which course to enter lessons for
+      navigate(`/teacher/students/${selectedItem.data.id}/profile`);
     } else {
       // Navigate to group lesson entry
       navigate(`/teacher/groups/${selectedItem.data.id}/lessons`);
@@ -89,7 +90,8 @@ const TeacherStudents = () => {
     if (!selectedItem) return;
     
     if (selectedItem.type === 'student') {
-      navigate(`/teacher/students/${selectedItem.data.id}/planned-lessons`);
+      // Navigate to student profile where they can select which course to plan lessons for
+      navigate(`/teacher/students/${selectedItem.data.id}/profile`);
     } else {
       // Navigate to group lesson planning
       navigate(`/teacher/groups/${selectedItem.data.id}/planned-lessons`);
@@ -307,23 +309,36 @@ const TeacherStudents = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Button
-                    onClick={handleLessonEntry}
-                    data-testid="lesson-entry-btn"
-                    className="teacher-btn"
-                  >
-                    <Book size={20} className="mr-2" />
-                    Ders Girişi
-                  </Button>
-                  <Button
-                    onClick={handleLessonPlanning}
-                    data-testid="lesson-planning-btn"
-                    variant="outline"
-                    className="rounded-full px-8 py-3"
-                  >
-                    <Calendar size={20} className="mr-2" />
-                    Ders Planlama
-                  </Button>
+                  {selectedItem.type === 'group' ? (
+                    <>
+                      <Button
+                        onClick={handleLessonEntry}
+                        data-testid="lesson-entry-btn"
+                        className="teacher-btn"
+                      >
+                        <Book size={20} className="mr-2" />
+                        Ders Girişi
+                      </Button>
+                      <Button
+                        onClick={handleLessonPlanning}
+                        data-testid="lesson-planning-btn"
+                        variant="outline"
+                        className="rounded-full px-8 py-3"
+                      >
+                        <Calendar size={20} className="mr-2" />
+                        Ders Planlama
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      onClick={handleLessonEntry}
+                      data-testid="view-profile-btn"
+                      className="teacher-btn"
+                    >
+                      <User size={20} className="mr-2" />
+                      Profil ve Dersler
+                    </Button>
+                  )}
                   <Button
                     onClick={() => setSelectedItem(null)}
                     variant="outline"
