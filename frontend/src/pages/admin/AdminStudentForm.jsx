@@ -9,6 +9,7 @@ import { Textarea } from '../../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { toast } from 'sonner';
 import { Plus, X } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 
 const AdminStudentForm = () => {
   const { id } = useParams();
@@ -32,6 +33,13 @@ const AdminStudentForm = () => {
   const [seasons, setSeasons] = useState([]);
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [courseDialogOpen, setCourseDialogOpen] = useState(false);
+  const [newCourse, setNewCourse] = useState({
+    teacher_id: '',
+    branch_id: '',
+    lesson_type_id: '',
+    price: ''
+  });
 
   useEffect(() => {
     fetchReferenceData();
@@ -87,7 +95,17 @@ const AdminStudentForm = () => {
         await apiClient.put(`/students/${id}`, formData);
         toast.success('Öğrenci güncellendi');
       } else {
-        await apiClient.post('/students', formData);
+        const response = await apiClient.post('/students', formData);
+        const studentId = response.data.id;
+        
+        // Add courses if any
+        for (const course of courses) {
+          await apiClient.post('/student-courses', {
+            student_id: studentId,
+            ...course
+          });
+        }
+        
         toast.success('Öğrenci eklendi');
       }
       navigate('/admin/students');
@@ -98,10 +116,20 @@ const AdminStudentForm = () => {
     }
   };
 
-  const handleAddCourse = async (e) => {
-    e.preventDefault();
-    // This will be handled in a modal or separate section
-    toast.info('Ders ekleme özelliği yakında eklenecek');
+  const handleAddCourse = () => {
+    if (!newCourse.teacher_id || !newCourse.branch_id || !newCourse.lesson_type_id || !newCourse.price) {
+      toast.error('Tüm alanları doldurun');
+      return;
+    }
+    
+    setCourses([...courses, { ...newCourse, price: parseFloat(newCourse.price) }]);
+    setNewCourse({ teacher_id: '', branch_id: '', lesson_type_id: '', price: '' });
+    setCourseDialogOpen(false);
+    toast.success('Ders eklendi');
+  };
+
+  const handleRemoveCourse = (index) => {
+    setCourses(courses.filter((_, i) => i !== index));
   };
 
   return (
@@ -228,6 +256,118 @@ const AdminStudentForm = () => {
                   );
                 })}
               </div>
+            </div>
+          )}
+
+          {!isEdit && (
+            <div className="admin-card p-8">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-slate-800">Alacağı Dersler</h2>
+                <Dialog open={courseDialogOpen} onOpenChange={setCourseDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button type="button" variant="outline" data-testid="add-course-btn">
+                      <Plus size={16} className="mr-2" />
+                      Ders Ekle
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Yeni Ders Ekle</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Branş *</Label>
+                        <Select value={newCourse.branch_id} onValueChange={(value) => setNewCourse({ ...newCourse, branch_id: value })}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Branş seçin" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {branches.map((branch) => (
+                              <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label>Öğretmen *</Label>
+                        <Select value={newCourse.teacher_id} onValueChange={(value) => setNewCourse({ ...newCourse, teacher_id: value })}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Öğretmen seçin" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {teachers.map((teacher) => (
+                              <SelectItem key={teacher.id} value={teacher.id}>{teacher.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Ders Tipi *</Label>
+                        <Select value={newCourse.lesson_type_id} onValueChange={(value) => setNewCourse({ ...newCourse, lesson_type_id: value })}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Ders tipi seçin" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {lessonTypes.map((type) => (
+                              <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Ders Ücreti (₺) *</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={newCourse.price}
+                          onChange={(e) => setNewCourse({ ...newCourse, price: e.target.value })}
+                          placeholder="250"
+                        />
+                      </div>
+
+                      <div className="flex gap-3">
+                        <Button type="button" onClick={handleAddCourse} className="flex-1">Ekle</Button>
+                        <Button type="button" variant="outline" onClick={() => setCourseDialogOpen(false)}>İptal</Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+              
+              {courses.length > 0 && (
+                <div className="space-y-3">
+                  {courses.map((course, index) => {
+                    const branch = branches.find(b => b.id === course.branch_id);
+                    const teacher = teachers.find(t => t.id === course.teacher_id);
+                    const lessonType = lessonTypes.find(lt => lt.id === course.lesson_type_id);
+                    return (
+                      <div key={index} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                        <div>
+                          <p className="font-semibold text-slate-800">{branch?.name}</p>
+                          <p className="text-sm text-slate-600">
+                            {teacher?.name} • {lessonType?.name} • {course.price} ₺
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleRemoveCourse(index)}
+                        >
+                          <X size={16} />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              
+              {courses.length === 0 && (
+                <p className="text-slate-600 text-center py-8">Henüz ders eklenmemiş. Yukarıdaki butonu kullanarak ders ekleyin.</p>
+              )}
             </div>
           )}
 

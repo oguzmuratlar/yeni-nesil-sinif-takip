@@ -26,6 +26,8 @@ import AdminTeacherBalance from "./pages/admin/AdminTeacherBalance";
 import AdminPayments from "./pages/admin/AdminPayments";
 import AdminMonthlyProgram from "./pages/admin/AdminMonthlyProgram";
 import AdminUserForm from "./pages/admin/AdminUserForm";
+import AdminBankAccounts from "./pages/admin/AdminBankAccounts";
+import AdminBankAccountForm from "./pages/admin/AdminBankAccountForm";
 
 // Teacher Pages
 import TeacherStudents from "./pages/teacher/TeacherStudents";
@@ -124,6 +126,16 @@ function App() {
             <Route path="/admin/users/new" element={
               <ProtectedRoute requiredRole="admin">
                 <AdminUserForm />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/bank-accounts" element={
+              <ProtectedRoute requiredRole="admin">
+                <AdminBankAccounts />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/bank-accounts/new" element={
+              <ProtectedRoute requiredRole="admin">
+                <AdminBankAccountForm />
               </ProtectedRoute>
             } />
 

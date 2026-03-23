@@ -15,7 +15,9 @@ const AdminTeacherForm = () => {
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
-    season_id: ''
+    season_id: '',
+    username: '',
+    password: ''
   });
   const [seasons, setSeasons] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -51,15 +53,34 @@ const AdminTeacherForm = () => {
 
     try {
       if (isEdit) {
-        await apiClient.put(`/teachers/${id}`, formData);
+        await apiClient.put(`/teachers/${id}`, {
+          name: formData.name,
+          phone: formData.phone,
+          season_id: formData.season_id
+        });
         toast.success('Öğretmen güncellendi');
       } else {
-        await apiClient.post('/teachers', formData);
-        toast.success('Öğretmen eklendi');
+        // First create teacher
+        const teacherResponse = await apiClient.post('/teachers', {
+          name: formData.name,
+          phone: formData.phone,
+          season_id: formData.season_id
+        });
+        const teacherId = teacherResponse.data.id;
+        
+        // Then create user for this teacher
+        await apiClient.post('/auth/register', {
+          username: formData.username,
+          password: formData.password,
+          user_type: 'teacher',
+          teacher_id: teacherId
+        });
+        
+        toast.success('Öğretmen ve kullanıcı oluşturuldu');
       }
       navigate('/admin/teachers');
     } catch (error) {
-      toast.error(isEdit ? 'Güncelleme başarısız' : 'Ekleme başarısız');
+      toast.error(error.response?.data?.detail || (isEdit ? 'Güncelleme başarısız' : 'Ekleme başarısız'));
     } finally {
       setLoading(false);
     }
@@ -98,6 +119,38 @@ const AdminTeacherForm = () => {
                 data-testid="teacher-phone-input"
               />
             </div>
+
+            {!isEdit && (
+              <>
+                <div className="col-span-2 mt-4">
+                  <h3 className="text-lg font-bold text-slate-800 mb-2">Kullanıcı Bilgileri</h3>
+                  <p className="text-sm text-slate-600 mb-4">Öğretmen için giriş yapabilmesi için kullanıcı bilgileri</p>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="username">Kullanıcı Adı *</Label>
+                  <Input
+                    id="username"
+                    value={formData.username}
+                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                    required={!isEdit}
+                    data-testid="teacher-username-input"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="password">Şifre *</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    required={!isEdit}
+                    data-testid="teacher-password-input"
+                  />
+                </div>
+              </>
+            )}
           </div>
 
           <div className="flex items-center gap-4">

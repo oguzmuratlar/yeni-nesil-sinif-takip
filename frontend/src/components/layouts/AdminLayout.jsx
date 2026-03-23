@@ -8,7 +8,8 @@ import {
   Calendar, 
   UserPlus, 
   LogOut,
-  LayoutDashboard
+  LayoutDashboard,
+  Landmark
 } from 'lucide-react';
 
 const AdminLayout = ({ children }) => {
@@ -26,6 +27,7 @@ const AdminLayout = ({ children }) => {
     { path: '/admin/students', label: 'Öğrenciler', icon: Users },
     { path: '/admin/teachers', label: 'Öğretmenler', icon: GraduationCap },
     { path: '/admin/payments', label: 'Ödemeler', icon: CreditCard },
+    { path: '/admin/bank-accounts', label: 'Banka Hesapları', icon: Landmark },
     { path: '/admin/monthly-program', label: 'Aylık Program', icon: Calendar },
     { path: '/admin/users/new', label: 'Kullanıcı Ekle', icon: UserPlus },
   ];

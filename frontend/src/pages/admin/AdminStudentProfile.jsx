@@ -12,6 +12,7 @@ const AdminStudentProfile = () => {
   const navigate = useNavigate();
   const [student, setStudent] = useState(null);
   const [courses, setCourses] = useState([]);
+  const [lessons, setLessons] = useState([]);
   const [branches, setBranches] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [lessonTypes, setLessonTypes] = useState([]);
@@ -35,6 +36,14 @@ const AdminStudentProfile = () => {
       setBranches(branchesRes.data);
       setTeachers(teachersRes.data);
       setLessonTypes(typesRes.data);
+      
+      // Fetch all lessons for all courses
+      const allLessons = [];
+      for (const course of coursesRes.data) {
+        const lessonsRes = await apiClient.get(`/lessons?student_course_id=${course.id}`);
+        allLessons.push(...lessonsRes.data.map(l => ({ ...l, course_id: course.id })));
+      }
+      setLessons(allLessons.sort((a, b) => new Date(b.date) - new Date(a.date)));
     } catch (error) {
       toast.error('Veriler yüklenemedi');
     } finally {
@@ -129,12 +138,16 @@ const AdminStudentProfile = () => {
                   const branch = branches.find(b => b.id === course.branch_id);
                   const teacher = teachers.find(t => t.id === course.teacher_id);
                   const lessonType = lessonTypes.find(lt => lt.id === course.lesson_type_id);
+                  const courseLessons = lessons.filter(l => l.course_id === course.id);
+                  const totalLessons = courseLessons.reduce((sum, l) => sum + l.number_of_lessons, 0);
+                  
                   return (
                     <div key={course.id} className="p-4 bg-slate-50 rounded-lg" data-testid={`course-${course.id}`}>
                       <p className="font-semibold text-slate-800 mb-1">{branch?.name}</p>
-                      <p className="text-sm text-slate-600">
+                      <p className="text-sm text-slate-600 mb-1">
                         {teacher?.name} • {lessonType?.name} • {course.price} ₺/ders
                       </p>
+                      <p className="text-xs text-slate-500 mb-3">Toplam {totalLessons} ders yapıldı</p>
                       <div className="flex items-center gap-2 mt-3">
                         <Button
                           size="sm"
@@ -160,6 +173,36 @@ const AdminStudentProfile = () => {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Ders Geçmişi */}
+        <div className="admin-card p-6">
+          <h2 className="text-xl font-bold text-slate-800 mb-4">Ders Geçmişi (Tüm Branşlar)</h2>
+          {lessons.length === 0 ? (
+            <p className="text-slate-600 text-center py-8">Henüz ders yapılmamış</p>
+          ) : (
+            <div className="space-y-3">
+              {lessons.map((lesson) => {
+                const course = courses.find(c => c.id === lesson.course_id);
+                const branch = branches.find(b => b.id === course?.branch_id);
+                return (
+                  <div key={lesson.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                    <div>
+                      <p className="font-semibold text-slate-800">{lesson.date}</p>
+                      <p className="text-sm text-slate-600">
+                        {branch?.name} - {lesson.number_of_lessons} ders
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-blue-600">
+                        {(course?.price * lesson.number_of_lessons).toFixed(2)} ₺
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </AdminLayout>
