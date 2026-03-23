@@ -21,84 +21,67 @@
 
 ## Tamamlanan Özellikler
 
-### 2026-03-23 - Fork Session
-- [x] Kritik derleme hatası düzeltildi (AdminTeacherForm.jsx JSX syntax)
-- [x] Öğretmen düzenleme formu tam çalışır durumda
-- [x] Branş ve Fiyatlandırma dialog'u (birebir + grup ücretleri)
-- [x] **Geriye dönük olmayan ücret hesaplaması:**
-  - Lesson model'e `teacher_rate` alanı eklendi
-  - Ders oluşturulurken o anki öğretmen ücreti kaydediliyor
-  - Bakiye hesaplamasında önce lesson.teacher_rate kullanılıyor
-- [x] Öğrenci sınıf (level) normalizasyonu düzeltildi
-- [x] Backend %100, Frontend %95+ test başarısı
+### 2026-03-23 - Session 2
+- [x] **Öğrenci Düzenleme - Ders Yönetimi:**
+  - Ders Ekle dialog'u (Branş, Öğretmen, Ders Tipi, Ücret)
+  - Grup tipi seçildiğinde grup seçimi
+  - Dersten Ayrıl butonu
+  - Öğrencinin dahil olduğu gruplar görünümü
+  
+- [x] **Aylık Program Sayfası:**
+  - Tüm öğretmenlerin planlı dersleri
+  - Filtreleme (Ay, Öğretmen, Branş)
+  - Öğretmene göre gruplu görünüm
+  - Özet kartları (planlanan ders, öğrenci/öğretmen sayısı)
+  
+- [x] **Öğretmen Paneli - Grup Odaklı Yapı:**
+  - Tümü / Birebir / Gruplar tabları
+  - Öğrenci veya grup seçimi
+  - Ders Girişi ve Ders Planlama butonları
+  - Grup ders girişi sayfası (tüm öğrencilere yazar)
+  - Grup planlama sayfası (tüm öğrencilere yazar)
 
-### Önceki Session
+- [x] **Backend API Geliştirmeleri:**
+  - `/student-groups/{id}/add-student` - Gruba öğrenci ekle
+  - `/student-groups/{id}/remove-student` - Gruptan öğrenci çıkar
+  - `/student-groups/by-student/{id}` - Öğrencinin grupları
+  - `/teacher-groups/{id}` - Öğretmenin grupları
+  - `/all-planned-lessons` - Tüm planlı dersler (Aylık Program)
+  - `/group-planned-lessons` - Grup planlaması
+
+### 2026-03-23 - Session 1
+- [x] Kritik derleme hatası düzeltildi
+- [x] Öğretmen düzenleme formu (branş ve fiyatlandırma)
+- [x] Geriye dönük olmayan ücret hesaplaması (teacher_rate)
+- [x] Öğrenci sınıf normalizasyonu
+
+### Önceki Sessionlar
 - [x] Full-stack uygulama kurulumu
 - [x] JWT tabanlı authentication
-- [x] Öğrenci CRUD + soft delete (pasifleştirme)
-- [x] Öğretmen CRUD + soft delete
-- [x] Branş yönetimi
-- [x] Grup yönetimi
+- [x] Öğrenci/Öğretmen CRUD + soft delete
+- [x] Branş ve Grup yönetimi
 - [x] Banka hesapları yönetimi
-- [x] Ders girişi formları
-- [x] Ödeme kayıtları
-- [x] "Ödeme Günü" etiket değişikliği
-- [x] Sınıf dropdown seçici (5, 6, 7, 8)
+- [x] Ders ve ödeme kayıtları
 
 ---
 
 ## Bekleyen Görevler
 
 ### P1 - Yüksek Öncelik
-- [ ] Öğrenci-Grup ilişkilendirmesi görünürlüğü
-- [ ] Grup dersi mantığı (gruba ders girildiğinde tüm öğrencilere kaydedilmesi)
+- [ ] Öğretmen kullanıcıları doğru öğretmene bağlama (teacher1 → Ahmet Yılmaz)
 
 ### P2 - Orta Öncelik
-- [ ] Aylık Program sayfasının tam implementasyonu
+- [ ] Aylık Program takvim görünümü iyileştirmesi
 - [ ] Öğretmen kazanç detay raporu
 
 ### P3 - Düşük Öncelik
 - [ ] Şube silme endpoint'i
 - [ ] Grup silme/pasifleştirme
-- [ ] Backend refactoring (server.py modüler yapıya)
+- [ ] Backend refactoring
 
 ---
 
-## API Endpoints
-
-### Auth
-- `POST /api/auth/login` - Giriş
-- `POST /api/auth/register` - Kayıt (admin only)
-
-### Students
-- `GET /api/students` - Liste
-- `GET /api/students/{id}` - Detay
-- `POST /api/students` - Ekle
-- `PUT /api/students/{id}` - Güncelle
-- `PUT /api/students/{id}/status` - Pasifleştir
-
-### Teachers
-- `GET /api/teachers` - Liste
-- `GET /api/teachers/{id}` - Detay
-- `POST /api/teachers` - Ekle
-- `PUT /api/teachers/{id}` - Güncelle
-- `GET /api/teacher-balance/{id}` - Bakiye
-
-### Lessons
-- `GET /api/lessons` - Liste
-- `POST /api/lessons` - Ekle (teacher_rate ile)
-- `POST /api/group-lessons` - Grup dersi ekle
-
-### Payments
-- `GET /api/payments` - Liste
-- `POST /api/payments` - Ekle
-
----
-
-## Önemli Notlar
-
-### Teacher Rate (Geriye Dönük Olmama)
-Ders oluşturulduğunda öğretmenin o anki ücreti `teacher_rate` alanına kaydedilir. Bakiye hesaplamasında bu değer kullanılır. Eski dersler için (teacher_rate yoksa) güncel fiyata fallback yapılır.
-
-### Level Normalization
-Öğrenci sınıf değerleri veritabanında farklı formatlarda olabilir ("5. Sınıf", "6. snıf"). Frontend bu değerleri normalize ederek ("5", "6") Select component ile uyumlu hale getirir.
+## Test Durumu
+- Backend: %100 (28/28 test geçti)
+- Frontend: %100 (tüm özellikler çalışıyor)
+- Son test: /app/test_reports/iteration_3.json
