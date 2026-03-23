@@ -200,6 +200,7 @@ class Lesson(BaseModel):
     date: str
     number_of_lessons: int
     season_id: Optional[str] = None
+    teacher_rate: Optional[float] = None  # Ücret, ders oluşturulduğu anki fiyat (geriye dönük değişiklik yapılmaz)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class LessonCreate(BaseModel):
@@ -602,7 +603,28 @@ async def create_lesson(lesson_data: LessonCreate, current_user: User = Depends(
     if current_user.user_type == "teacher" and course["teacher_id"] != current_user.teacher_id:
         raise HTTPException(status_code=403, detail="Access denied")
     
-    lesson = Lesson(**lesson_data.model_dump())
+    # Ders oluşturulurken öğretmenin o anki ücretini kaydet (geriye dönük değişiklik olmaması için)
+    teacher_rate = None
+    teacher_price = await db.teacher_prices.find_one({
+        "teacher_id": course["teacher_id"],
+        "branch_id": course["branch_id"],
+        "lesson_type_id": course["lesson_type_id"],
+        "group_size": None  # Birebir ders
+    }, {"_id": 0})
+    
+    if teacher_price:
+        teacher_rate = teacher_price["price"]
+    else:
+        # Birebir bulunamazsa genel fiyatı al
+        teacher_price = await db.teacher_prices.find_one({
+            "teacher_id": course["teacher_id"],
+            "branch_id": course["branch_id"],
+            "lesson_type_id": course["lesson_type_id"]
+        }, {"_id": 0})
+        if teacher_price:
+            teacher_rate = teacher_price["price"]
+    
+    lesson = Lesson(**lesson_data.model_dump(), teacher_rate=teacher_rate)
     doc = lesson.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
     await db.lessons.insert_one(doc)
@@ -754,32 +776,37 @@ async def get_teacher_balance(teacher_id: str, current_user: User = Depends(get_
         {"_id": 0}
     ).to_list(10000)
     
-    # Calculate earnings based on teacher prices
+    # Calculate earnings based on lesson rates (stored at creation time)
     total_earnings = 0
     for lesson in lessons:
-        course = next((c for c in courses if c["id"] == lesson["student_course_id"]), None)
-        if course:
-            # Get teacher price for this course
-            teacher_price = await db.teacher_prices.find_one({
-                "teacher_id": teacher_id,
-                "branch_id": course["branch_id"],
-                "lesson_type_id": course["lesson_type_id"]
-            }, {"_id": 0})
-            
-            if teacher_price:
-                # If it's a group lesson, check group_size
-                if teacher_price.get("group_size"):
-                    # Find matching group size price
-                    group_price = await db.teacher_prices.find_one({
-                        "teacher_id": teacher_id,
-                        "branch_id": course["branch_id"],
-                        "lesson_type_id": course["lesson_type_id"],
-                        "group_size": teacher_price.get("group_size")
-                    }, {"_id": 0})
-                    if group_price:
-                        total_earnings += group_price["price"] * lesson["number_of_lessons"]
-                else:
-                    total_earnings += teacher_price["price"] * lesson["number_of_lessons"]
+        # Önce dersin kaydındaki ücreti kullan (geriye dönük değişiklik olmaması için)
+        if lesson.get("teacher_rate") is not None:
+            total_earnings += lesson["teacher_rate"] * lesson["number_of_lessons"]
+        else:
+            # Eski dersler için fallback: güncel fiyatı kullan
+            course = next((c for c in courses if c["id"] == lesson["student_course_id"]), None)
+            if course:
+                # Get teacher price for this course
+                teacher_price = await db.teacher_prices.find_one({
+                    "teacher_id": teacher_id,
+                    "branch_id": course["branch_id"],
+                    "lesson_type_id": course["lesson_type_id"]
+                }, {"_id": 0})
+                
+                if teacher_price:
+                    # If it's a group lesson, check group_size
+                    if teacher_price.get("group_size"):
+                        # Find matching group size price
+                        group_price = await db.teacher_prices.find_one({
+                            "teacher_id": teacher_id,
+                            "branch_id": course["branch_id"],
+                            "lesson_type_id": course["lesson_type_id"],
+                            "group_size": teacher_price.get("group_size")
+                        }, {"_id": 0})
+                        if group_price:
+                            total_earnings += group_price["price"] * lesson["number_of_lessons"]
+                    else:
+                        total_earnings += teacher_price["price"] * lesson["number_of_lessons"]
     
     # Get payments made to teacher
     payments = await db.payments.find(
@@ -876,10 +903,34 @@ async def create_group_lesson(
         }, {"_id": 0})
         
         if course:
+            # Grup dersi için öğretmenin o anki ücretini al
+            group_size = len(group["student_ids"])
+            teacher_rate = None
+            
+            # Önce grup boyutuna göre fiyat ara
+            group_price = await db.teacher_prices.find_one({
+                "teacher_id": group.get("teacher_id"),
+                "branch_id": branch_id,
+                "group_size": group_size
+            }, {"_id": 0})
+            
+            if group_price:
+                teacher_rate = group_price["price"]
+            else:
+                # Genel birebir fiyatı kullan
+                teacher_price = await db.teacher_prices.find_one({
+                    "teacher_id": group.get("teacher_id"),
+                    "branch_id": branch_id,
+                    "group_size": None
+                }, {"_id": 0})
+                if teacher_price:
+                    teacher_rate = teacher_price["price"]
+            
             lesson = Lesson(
                 student_course_id=course["id"],
                 date=date,
-                number_of_lessons=number_of_lessons
+                number_of_lessons=number_of_lessons,
+                teacher_rate=teacher_rate
             )
             doc = lesson.model_dump()
             doc['created_at'] = doc['created_at'].isoformat()

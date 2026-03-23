@@ -102,14 +102,50 @@ const AdminTeacherForm = () => {
 
     try {
       if (isEdit) {
+        // Update teacher basic info
         await apiClient.put(`/teachers/${id}`, {
           name: formData.name,
           phone: formData.phone,
           season_id: formData.season_id
         });
-        toast.success('Öğretmen güncellendi');
+        
+        // Update prices if provided
+        if (formData.branches && formData.branches.length > 0) {
+          const birebirType = lessonTypes.find(t => t.name === 'Birebir');
+          const grupType = lessonTypes.find(t => t.name === 'Grup');
+          
+          for (const branch of formData.branches) {
+            // Update or create birebir price
+            await apiClient.post('/teacher-prices', {
+              teacher_id: id,
+              branch_id: branch.branch_id,
+              lesson_type_id: birebirType.id,
+              price: parseFloat(branch.birebir_price),
+              season_id: formData.season_id
+            });
+            
+            // Update or create group prices
+            if (grupType) {
+              for (let i = 1; i <= 4; i++) {
+                const groupPrice = branch[`group_${i}`];
+                if (groupPrice) {
+                  await apiClient.post('/teacher-prices', {
+                    teacher_id: id,
+                    branch_id: branch.branch_id,
+                    lesson_type_id: grupType.id,
+                    price: parseFloat(groupPrice),
+                    group_size: i,
+                    season_id: formData.season_id
+                  });
+                }
+              }
+            }
+          }
+        }
+        
+        toast.success('Öğretmen güncellendi. Yeni fiyatlar ileriye dönük uygulanacak.');
       } else {
-        // First create teacher
+        // Create new teacher
         const teacherResponse = await apiClient.post('/teachers', {
           name: formData.name,
           phone: formData.phone,
@@ -260,137 +296,138 @@ const AdminTeacherForm = () => {
             )}
           </div>
 
-          {!isEdit && (
-            <div className="admin-card p-8">
-              <div className="flex items-center justify-between mb-4">
+          <div className="admin-card p-8">
+            <div className="flex items-center justify-between mb-4">
+              <div>
                 <h3 className="text-lg font-bold text-slate-800">Branş ve Ücretlendirme</h3>
-                <Dialog open={branchDialogOpen} onOpenChange={setBranchDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button type="button" variant="outline">
-                      <Plus size={16} className="mr-2" />
-                      Branş Ekle
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-2xl">
-                    <DialogHeader>
-                      <DialogTitle>Branş ve Fiyatlandırma Ekle</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label>Branş *</Label>
-                        <Select value={newBranch.branch_id} onValueChange={(value) => setNewBranch({ ...newBranch, branch_id: value })}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Branş seçin" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {branches.map((branch) => (
-                              <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label>Birebir Ders Ücreti (₺) *</Label>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={newBranch.birebir_price}
-                          onChange={(e) => setNewBranch({ ...newBranch, birebir_price: e.target.value })}
-                          placeholder="200"
-                        />
-                      </div>
+                {isEdit && <p className="text-sm text-slate-600 mt-1">Yeni fiyatlar sadece ileriye dönük uygulanır</p>}
+              </div>
+              <Dialog open={branchDialogOpen} onOpenChange={setBranchDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button type="button" variant="outline">
+                    <Plus size={16} className="mr-2" />
+                    Branş Ekle
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Branş ve Fiyatlandırma Ekle</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Branş *</Label>
+                      <Select value={newBranch.branch_id} onValueChange={(value) => setNewBranch({ ...newBranch, branch_id: value })}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Branş seçin" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {branches.map((branch) => (
+                            <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label>Birebir Ders Ücreti (₺) *</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={newBranch.birebir_price}
+                        onChange={(e) => setNewBranch({ ...newBranch, birebir_price: e.target.value })}
+                        placeholder="200"
+                      />
+                    </div>
 
-                      <div className="border-t pt-4">
-                        <h4 className="font-semibold text-slate-800 mb-3">Grup Dersi Ücretleri</h4>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label>1 Kişilik Grup (₺)</Label>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              value={newBranch.group_1}
-                              onChange={(e) => setNewBranch({ ...newBranch, group_1: e.target.value })}
-                              placeholder="150"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>2 Kişilik Grup (₺)</Label>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              value={newBranch.group_2}
-                              onChange={(e) => setNewBranch({ ...newBranch, group_2: e.target.value })}
-                              placeholder="100"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>3 Kişilik Grup (₺)</Label>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              value={newBranch.group_3}
-                              onChange={(e) => setNewBranch({ ...newBranch, group_3: e.target.value })}
-                              placeholder="75"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>4 Kişilik Grup (₺)</Label>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              value={newBranch.group_4}
-                              onChange={(e) => setNewBranch({ ...newBranch, group_4: e.target.value })}
-                              placeholder="60"
-                            />
-                          </div>
+                    <div className="border-t pt-4">
+                      <h4 className="font-semibold text-slate-800 mb-3">Grup Dersi Ücretleri</h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>1 Kişilik Grup (₺)</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={newBranch.group_1}
+                            onChange={(e) => setNewBranch({ ...newBranch, group_1: e.target.value })}
+                            placeholder="150"
+                          />
                         </div>
-                      </div>
-
-                      <div className="flex gap-3">
-                        <Button type="button" onClick={handleAddBranch} className="flex-1">Ekle</Button>
-                        <Button type="button" variant="outline" onClick={() => setBranchDialogOpen(false)}>İptal</Button>
+                        <div className="space-y-2">
+                          <Label>2 Kişilik Grup (₺)</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={newBranch.group_2}
+                            onChange={(e) => setNewBranch({ ...newBranch, group_2: e.target.value })}
+                            placeholder="100"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>3 Kişilik Grup (₺)</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={newBranch.group_3}
+                            onChange={(e) => setNewBranch({ ...newBranch, group_3: e.target.value })}
+                            placeholder="75"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>4 Kişilik Grup (₺)</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={newBranch.group_4}
+                            onChange={(e) => setNewBranch({ ...newBranch, group_4: e.target.value })}
+                            placeholder="60"
+                          />
+                        </div>
                       </div>
                     </div>
-                  </DialogContent>
-                </Dialog>
-              </div>
-              
-              {formData.branches.length > 0 ? (
-                <div className="space-y-3">
-                  {formData.branches.map((branch, index) => {
-                    const branchData = branches.find(b => b.id === branch.branch_id);
-                    return (
-                      <div key={index} className="p-4 bg-slate-50 rounded-lg">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <p className="font-semibold text-slate-800 mb-2">{branchData?.name}</p>
-                            <div className="grid grid-cols-2 gap-2 text-sm text-slate-600">
-                              <p>• Birebir: {branch.birebir_price} ₺</p>
-                              {branch.group_1 && <p>• Grup 1: {branch.group_1} ₺</p>}
-                              {branch.group_2 && <p>• Grup 2: {branch.group_2} ₺</p>}
-                              {branch.group_3 && <p>• Grup 3: {branch.group_3} ₺</p>}
-                              {branch.group_4 && <p>• Grup 4: {branch.group_4} ₺</p>}
-                            </div>
-                          </div>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => handleRemoveBranch(index)}
-                          >
-                            <X size={16} />
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="text-slate-600 text-center py-8">Branş ekleyin</p>
-              )}
+
+                    <div className="flex gap-3">
+                      <Button type="button" onClick={handleAddBranch} className="flex-1">Ekle</Button>
+                      <Button type="button" variant="outline" onClick={() => setBranchDialogOpen(false)}>İptal</Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
-          )}
+            
+            {formData.branches.length > 0 ? (
+              <div className="space-y-3">
+                {formData.branches.map((branch, index) => {
+                  const branchData = branches.find(b => b.id === branch.branch_id);
+                  return (
+                    <div key={index} className="p-4 bg-slate-50 rounded-lg">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="font-semibold text-slate-800 mb-2">{branchData?.name}</p>
+                          <div className="grid grid-cols-2 gap-2 text-sm text-slate-600">
+                            <p>• Birebir: {branch.birebir_price} ₺</p>
+                            {branch.group_1 && <p>• Grup 1: {branch.group_1} ₺</p>}
+                            {branch.group_2 && <p>• Grup 2: {branch.group_2} ₺</p>}
+                            {branch.group_3 && <p>• Grup 3: {branch.group_3} ₺</p>}
+                            {branch.group_4 && <p>• Grup 4: {branch.group_4} ₺</p>}
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleRemoveBranch(index)}
+                        >
+                          <X size={16} />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-slate-600 text-center py-8">Branş ekleyin</p>
+            )}
+          </div>
 
           <div className="flex items-center gap-4">
             <Button
