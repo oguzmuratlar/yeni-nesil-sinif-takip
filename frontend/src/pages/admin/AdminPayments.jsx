@@ -7,7 +7,7 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
-import { Plus, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
+import { Plus, ArrowUpCircle, ArrowDownCircle, Filter } from 'lucide-react';
 import { toast } from 'sonner';
 
 const AdminPayments = () => {
@@ -18,6 +18,8 @@ const AdminPayments = () => {
   const [branches, setBranches] = useState([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogType, setDialogType] = useState('income'); // 'income' or 'expense'
+  const [selectedMonth, setSelectedMonth] = useState('');
+  const [selectedBankAccount, setSelectedBankAccount] = useState('all');
   const [newPayment, setNewPayment] = useState({
     amount: '',
     date: new Date().toISOString().split('T')[0],
@@ -29,25 +31,43 @@ const AdminPayments = () => {
   });
 
   useEffect(() => {
-    fetchData();
+    fetchReferenceData();
   }, []);
 
-  const fetchData = async () => {
+  useEffect(() => {
+    fetchPayments();
+  }, [selectedMonth, selectedBankAccount]);
+
+  const fetchReferenceData = async () => {
     try {
-      const [paymentsRes, studentsRes, teachersRes, banksRes, branchesRes] = await Promise.all([
-        apiClient.get('/payments'),
+      const [studentsRes, teachersRes, banksRes, branchesRes] = await Promise.all([
         apiClient.get('/students'),
         apiClient.get('/teachers'),
         apiClient.get('/bank-accounts'),
         apiClient.get('/branches')
       ]);
-      setPayments(paymentsRes.data);
       setStudents(studentsRes.data);
       setTeachers(teachersRes.data);
       setBankAccounts(banksRes.data);
       setBranches(branchesRes.data);
     } catch (error) {
-      toast.error('Veriler yüklenemedi');
+      toast.error('Referans veriler yüklenemedi');
+    }
+  };
+
+  const fetchPayments = async () => {
+    try {
+      let url = '/payments?';
+      if (selectedMonth) {
+        url += `month=${selectedMonth}&`;
+      }
+      if (selectedBankAccount && selectedBankAccount !== 'all') {
+        url += `bank_account_id=${selectedBankAccount}`;
+      }
+      const response = await apiClient.get(url);
+      setPayments(response.data);
+    } catch (error) {
+      toast.error('Ödemeler yüklenemedi');
     }
   };
 
@@ -63,7 +83,7 @@ const AdminPayments = () => {
       toast.success('Ödeme eklendi');
       setDialogOpen(false);
       setNewPayment({ amount: '', date: new Date().toISOString().split('T')[0], student_id: '', teacher_id: '', bank_account_id: '', description: '', expense_category: '' });
-      fetchData();
+      fetchPayments();
     } catch (error) {
       toast.error('Ödeme eklenemedi');
     }
@@ -128,6 +148,60 @@ const AdminPayments = () => {
                 Para Çıkışı
               </Button>
             </div>
+          </div>
+
+          {/* Filtreler */}
+          <div className="flex flex-wrap items-center gap-4 mb-6 p-4 bg-slate-50 rounded-lg">
+            <div className="flex items-center gap-2">
+              <Filter size={18} className="text-slate-500" />
+              <span className="text-sm font-medium text-slate-700">Filtreler:</span>
+            </div>
+            
+            <Select value={selectedMonth || 'all'} onValueChange={(val) => setSelectedMonth(val === 'all' ? '' : val)}>
+              <SelectTrigger className="w-44" data-testid="month-filter">
+                <SelectValue placeholder="Ay seçin" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tüm Aylar</SelectItem>
+                <SelectItem value="2024-12">Aralık 2024</SelectItem>
+                <SelectItem value="2025-01">Ocak 2025</SelectItem>
+                <SelectItem value="2025-02">Şubat 2025</SelectItem>
+                <SelectItem value="2025-03">Mart 2025</SelectItem>
+                <SelectItem value="2025-04">Nisan 2025</SelectItem>
+                <SelectItem value="2025-05">Mayıs 2025</SelectItem>
+                <SelectItem value="2025-06">Haziran 2025</SelectItem>
+                <SelectItem value="2026-01">Ocak 2026</SelectItem>
+                <SelectItem value="2026-02">Şubat 2026</SelectItem>
+                <SelectItem value="2026-03">Mart 2026</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={selectedBankAccount} onValueChange={setSelectedBankAccount}>
+              <SelectTrigger className="w-56" data-testid="bank-filter">
+                <SelectValue placeholder="Banka Hesabı" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tüm Hesaplar</SelectItem>
+                {bankAccounts.map(account => (
+                  <SelectItem key={account.id} value={account.id}>
+                    {account.bank_name} - {account.holder_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {(selectedMonth || selectedBankAccount !== 'all') && (
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => {
+                  setSelectedMonth('');
+                  setSelectedBankAccount('all');
+                }}
+              >
+                Filtreleri Temizle
+              </Button>
+            )}
           </div>
 
           <Tabs defaultValue="all" className="w-full">

@@ -85,6 +85,7 @@ class StudentCreate(BaseModel):
     payment_freq: str
     notes: Optional[str] = None
     bank_account_id: Optional[str] = None
+    status: Optional[str] = None  # Pasifleştirme için
 
 class Teacher(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -99,6 +100,7 @@ class TeacherCreate(BaseModel):
     name: str
     phone: str
     season_id: Optional[str] = None
+    status: Optional[str] = None  # Pasifleştirme için
 
 class Branch(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -398,6 +400,15 @@ async def login(login_data: LoginRequest):
             detail="Incorrect username or password",
         )
     
+    # Öğretmen ise, öğretmenin aktif olup olmadığını kontrol et
+    if user["user_type"] == "teacher" and user.get("teacher_id"):
+        teacher = await db.teachers.find_one({"id": user["teacher_id"]}, {"_id": 0})
+        if teacher and teacher.get("status") == "inactive":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Bu hesap pasife alınmıştır. Lütfen yönetici ile iletişime geçin.",
+            )
+    
     access_token = create_access_token(data={"sub": user["username"]})
     return Token(
         access_token=access_token,
@@ -480,7 +491,9 @@ async def create_student(student_data: StudentCreate, current_user: User = Depen
     if current_user.user_type != "admin":
         raise HTTPException(status_code=403, detail="Only admins can create students")
     
-    student = Student(**student_data.model_dump())
+    # Filter out None values to use model defaults
+    create_data = {k: v for k, v in student_data.model_dump().items() if v is not None}
+    student = Student(**create_data)
     doc = student.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
     await db.students.insert_one(doc)
@@ -495,7 +508,7 @@ async def update_student(student_id: str, student_data: StudentCreate, current_u
     if not existing:
         raise HTTPException(status_code=404, detail="Student not found")
     
-    update_data = student_data.model_dump()
+    update_data = {k: v for k, v in student_data.model_dump().items() if v is not None}
     await db.students.update_one({"id": student_id}, {"$set": update_data})
     
     updated = await db.students.find_one({"id": student_id}, {"_id": 0})
@@ -537,7 +550,9 @@ async def create_teacher(teacher_data: TeacherCreate, current_user: User = Depen
     if current_user.user_type != "admin":
         raise HTTPException(status_code=403, detail="Only admins can create teachers")
     
-    teacher = Teacher(**teacher_data.model_dump())
+    # Filter out None values to use model defaults
+    create_data = {k: v for k, v in teacher_data.model_dump().items() if v is not None}
+    teacher = Teacher(**create_data)
     doc = teacher.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
     await db.teachers.insert_one(doc)
@@ -552,7 +567,7 @@ async def update_teacher(teacher_id: str, teacher_data: TeacherCreate, current_u
     if not existing:
         raise HTTPException(status_code=404, detail="Teacher not found")
     
-    update_data = teacher_data.model_dump()
+    update_data = {k: v for k, v in teacher_data.model_dump().items() if v is not None}
     await db.teachers.update_one({"id": teacher_id}, {"$set": update_data})
     
     updated = await db.teachers.find_one({"id": teacher_id}, {"_id": 0})
@@ -585,6 +600,31 @@ async def create_branch(name: str, current_user: User = Depends(get_current_user
     branch = Branch(name=name)
     await db.branches.insert_one(branch.model_dump())
     return branch
+
+@api_router.delete("/branches/{branch_id}")
+async def delete_branch(branch_id: str, current_user: User = Depends(get_current_user)):
+    """Branşı sil. İlişkili kurs, grup veya öğretmen fiyatı varsa silemez."""
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can delete branches")
+    
+    # İlişkili veri kontrolü
+    course_count = await db.student_courses.count_documents({"branch_id": branch_id})
+    if course_count > 0:
+        raise HTTPException(status_code=400, detail=f"Bu branşa bağlı {course_count} ders kaydı var. Önce dersleri silin veya başka branşa taşıyın.")
+    
+    group_count = await db.student_groups.count_documents({"branch_id": branch_id})
+    if group_count > 0:
+        raise HTTPException(status_code=400, detail=f"Bu branşa bağlı {group_count} grup var. Önce grupları silin.")
+    
+    price_count = await db.teacher_prices.count_documents({"branch_id": branch_id})
+    if price_count > 0:
+        raise HTTPException(status_code=400, detail=f"Bu branşa tanımlı {price_count} öğretmen fiyatı var. Önce fiyatları silin.")
+    
+    result = await db.branches.delete_one({"id": branch_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Branch not found")
+    
+    return {"message": "Branch deleted successfully"}
 
 # ============= LESSON TYPE ROUTES =============
 
@@ -814,15 +854,32 @@ async def delete_planned_lesson(planned_id: str, current_user: User = Depends(ge
 # ============= PAYMENT ROUTES =============
 
 @api_router.get("/payments", response_model=List[Payment])
-async def get_payments(current_user: User = Depends(get_current_user)):
+async def get_payments(
+    month: Optional[str] = None,  # Format: "2025-01"
+    bank_account_id: Optional[str] = None,
+    current_user: User = Depends(get_current_user)
+):
     if current_user.user_type == "admin":
-        payments = await db.payments.find({}, {"_id": 0}).to_list(1000)
+        query = {}
+        
+        # Ay filtresi (date alanı "YYYY-MM-DD" formatında)
+        if month:
+            query["date"] = {"$regex": f"^{month}"}
+        
+        # Banka hesabı filtresi
+        if bank_account_id:
+            query["bank_account_id"] = bank_account_id
+        
+        payments = await db.payments.find(query, {"_id": 0}).to_list(1000)
     else:
         # Teachers only see their payments
-        payments = await db.payments.find(
-            {"teacher_id": current_user.teacher_id},
-            {"_id": 0}
-        ).to_list(1000)
+        query = {"teacher_id": current_user.teacher_id}
+        if month:
+            query["date"] = {"$regex": f"^{month}"}
+        if bank_account_id:
+            query["bank_account_id"] = bank_account_id
+        
+        payments = await db.payments.find(query, {"_id": 0}).to_list(1000)
     
     for payment in payments:
         if isinstance(payment.get('created_at'), str):
@@ -917,15 +974,16 @@ async def get_teacher_balance(teacher_id: str, current_user: User = Depends(get_
     
     total_paid = sum([p["amount"] for p in payments])
     
-    # Kamp kazançlarını hesapla (sadece ödeme yapılmış öğrenciler)
+    # Kamp kazançlarını hesapla (kesin_kayit = ödeme yapılmış kabul edilir)
     camps = await db.camps.find({"teacher_id": teacher_id}, {"_id": 0}).to_list(1000)
     total_camp_earnings = 0
     camp_earnings_details = []
     
     for camp in camps:
+        # Kesin kayıtlı öğrenci sayısı = ödeme yapmış kabul edilir
         paid_students_count = await db.camp_students.count_documents({
             "camp_id": camp["id"],
-            "payment_completed": True
+            "registration_status": "kesin_kayit"  # Statü kesin_kayit = ödeme yapılmış
         })
         camp_earning = paid_students_count * camp["per_student_teacher_fee"]
         total_camp_earnings += camp_earning
@@ -1395,6 +1453,12 @@ async def add_camp_student(camp_id: str, student_data: CampStudentCreate, curren
     student_data_dict = student_data.model_dump()
     student_data_dict["camp_id"] = camp_id
     
+    # Statüye göre ödeme durumunu otomatik ayarla (kesin_kayit = ödeme yapılmış)
+    if student_data_dict.get("registration_status") == "kesin_kayit":
+        student_data_dict["payment_completed"] = True
+    else:
+        student_data_dict["payment_completed"] = False
+    
     student = CampStudent(**student_data_dict)
     doc = student.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
@@ -1412,6 +1476,14 @@ async def update_camp_student(student_id: str, student_data: CampStudentUpdate, 
         raise HTTPException(status_code=404, detail="Camp student not found")
     
     update_data = {k: v for k, v in student_data.model_dump().items() if v is not None}
+    
+    # Statüye göre ödeme durumunu otomatik ayarla (kesin_kayit = ödeme yapılmış)
+    if "registration_status" in update_data:
+        if update_data["registration_status"] == "kesin_kayit":
+            update_data["payment_completed"] = True
+        else:
+            update_data["payment_completed"] = False
+    
     if update_data:
         await db.camp_students.update_one({"id": student_id}, {"$set": update_data})
     
@@ -1434,7 +1506,7 @@ async def delete_camp_student(student_id: str, current_user: User = Depends(get_
 
 @api_router.get("/teacher-camp-earnings/{teacher_id}")
 async def get_teacher_camp_earnings(teacher_id: str, current_user: User = Depends(get_current_user)):
-    """Öğretmenin kamp kazançlarını hesapla. Sadece ödeme yapılmış öğrenciler sayılır."""
+    """Öğretmenin kamp kazançlarını hesapla. Kesin kayıtlı öğrenciler = ödeme yapılmış kabul edilir."""
     # Öğretmen ise sadece kendi kazancını görsün
     if current_user.user_type == "teacher" and current_user.teacher_id != teacher_id:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -1446,10 +1518,10 @@ async def get_teacher_camp_earnings(teacher_id: str, current_user: User = Depend
     total_earnings = 0
     
     for camp in camps:
-        # Ödeme yapmış öğrencileri say
+        # Kesin kayıtlı öğrencileri say (kesin_kayit = ödeme yapılmış kabul edilir)
         paid_students = await db.camp_students.find({
             "camp_id": camp["id"],
-            "payment_completed": True
+            "registration_status": "kesin_kayit"
         }, {"_id": 0}).to_list(1000)
         
         paid_count = len(paid_students)
@@ -1551,8 +1623,8 @@ async def update_youtube_content(record_id: str, data: YouTubeContentUpdate, cur
     return updated_record
 
 @api_router.delete("/youtube-contents/{record_id}")
-async def delete_youtube_content(record_id: str, soft_delete: bool = True, current_user: User = Depends(get_current_user)):
-    """YouTube kaydını sil veya pasife al. Sadece admin."""
+async def delete_youtube_content(record_id: str, current_user: User = Depends(get_current_user)):
+    """YouTube kaydını kalıcı olarak sil. Sadece admin. Kayıtlar immutable olduğu için sadece silme işlemi yapılır."""
     if current_user.user_type != "admin":
         raise HTTPException(status_code=403, detail="Only admins can delete YouTube content records")
     
@@ -1560,14 +1632,9 @@ async def delete_youtube_content(record_id: str, soft_delete: bool = True, curre
     if not record:
         raise HTTPException(status_code=404, detail="YouTube content not found")
     
-    if soft_delete:
-        # Soft delete - status'u inactive yap
-        await db.youtube_contents.update_one({"id": record_id}, {"$set": {"status": YouTubeContentStatus.INACTIVE}})
-        return {"message": "YouTube content marked as inactive"}
-    else:
-        # Hard delete
-        await db.youtube_contents.delete_one({"id": record_id})
-        return {"message": "YouTube content deleted successfully"}
+    # Sadece hard delete - kayıtlar immutable
+    await db.youtube_contents.delete_one({"id": record_id})
+    return {"message": "YouTube content deleted successfully"}
 
 @api_router.get("/teacher-youtube-earnings/{teacher_id}")
 async def get_teacher_youtube_earnings(teacher_id: str, current_user: User = Depends(get_current_user)):

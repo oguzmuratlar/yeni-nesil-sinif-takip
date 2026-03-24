@@ -6,7 +6,7 @@ import { Button } from '../../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
-import { Plus, Users } from 'lucide-react';
+import { Plus, Users, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const AdminBranches = () => {
@@ -47,6 +47,22 @@ const AdminBranches = () => {
       fetchData();
     } catch (error) {
       toast.error('Branş eklenemedi');
+    }
+  };
+
+  const handleDeleteBranch = async (branchId, branchName) => {
+    if (!window.confirm(`"${branchName}" branşını silmek istediğinize emin misiniz?`)) {
+      return;
+    }
+
+    try {
+      await apiClient.delete(`/branches/${branchId}`);
+      toast.success('Branş silindi');
+      fetchData();
+    } catch (error) {
+      // Backend'den gelen hata mesajını göster
+      const message = error.response?.data?.detail || 'Branş silinemedi';
+      toast.error(message);
     }
   };
 
@@ -111,10 +127,26 @@ const AdminBranches = () => {
                   className="admin-card p-6 cursor-pointer hover:scale-105 transition-transform"
                   onClick={() => setSelectedBranch(selectedBranch?.id === branch.id ? null : branch)}
                 >
-                  <h3 className="text-xl font-bold text-slate-800 mb-3">{branch.name}</h3>
-                  <div className="flex items-center gap-2 text-slate-600 mb-4">
-                    <Users size={18} />
-                    <span className="text-sm">{branchTeachers.length} öğretmen</span>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="text-xl font-bold text-slate-800 mb-3">{branch.name}</h3>
+                      <div className="flex items-center gap-2 text-slate-600 mb-4">
+                        <Users size={18} />
+                        <span className="text-sm">{branchTeachers.length} öğretmen</span>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteBranch(branch.id, branch.name);
+                      }}
+                      className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                      data-testid={`delete-branch-${branch.id}`}
+                    >
+                      <Trash2 size={16} />
+                    </Button>
                   </div>
                   
                   {selectedBranch?.id === branch.id && branchTeachers.length > 0 && (

@@ -7,13 +7,12 @@ import { Label } from '../../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { toast } from 'sonner';
-import { Plus, Youtube, Edit, Trash2, Filter } from 'lucide-react';
+import { Plus, Youtube, Edit, Trash2 } from 'lucide-react';
 
 const AdminYoutube = () => {
   const [records, setRecords] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showInactive, setShowInactive] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [formData, setFormData] = useState({
@@ -25,13 +24,13 @@ const AdminYoutube = () => {
 
   useEffect(() => {
     fetchData();
-  }, [showInactive]);
+  }, []);
 
   const fetchData = async () => {
     setLoading(true);
     try {
       const [recordsRes, teachersRes] = await Promise.all([
-        apiClient.get(`/youtube-contents?include_inactive=${showInactive}`),
+        apiClient.get('/youtube-contents'),
         apiClient.get('/teachers')
       ]);
       setRecords(recordsRes.data);
@@ -93,35 +92,22 @@ const AdminYoutube = () => {
     }
   };
 
-  const handleDelete = async (recordId, softDelete = true) => {
-    const message = softDelete 
-      ? 'Bu kaydı pasife almak istediğinize emin misiniz?' 
-      : 'Bu kaydı kalıcı olarak silmek istediğinize emin misiniz?';
-    
-    if (!window.confirm(message)) {
+  const handleDelete = async (recordId) => {
+    if (!window.confirm('Bu kaydı kalıcı olarak silmek istediğinize emin misiniz?')) {
       return;
     }
 
     try {
-      await apiClient.delete(`/youtube-contents/${recordId}?soft_delete=${softDelete}`);
-      toast.success(softDelete ? 'Kayıt pasife alındı' : 'Kayıt silindi');
+      await apiClient.delete(`/youtube-contents/${recordId}`);
+      toast.success('Kayıt silindi');
       fetchData();
     } catch (error) {
       toast.error('İşlem başarısız');
     }
   };
 
-  const getStatusBadge = (status) => {
-    if (status === 'inactive') {
-      return <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-700">Pasif</span>;
-    }
-    return <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700">Aktif</span>;
-  };
-
   // Toplam kazanç hesapla
-  const totalEarnings = records
-    .filter(r => r.status === 'active')
-    .reduce((sum, r) => sum + r.amount, 0);
+  const totalEarnings = records.reduce((sum, r) => sum + r.amount, 0);
 
   return (
     <AdminLayout>
@@ -202,32 +188,15 @@ const AdminYoutube = () => {
           </Dialog>
         </div>
 
-        {/* Summary & Filter */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <div className="admin-card p-6">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
-                <Youtube size={24} className="text-red-600" />
-              </div>
-              <div>
-                <p className="text-sm text-slate-500">Toplam YouTube Kazancı (Aktif)</p>
-                <p className="text-2xl font-bold text-red-600">{totalEarnings.toFixed(2)} ₺</p>
-              </div>
+        {/* Summary */}
+        <div className="admin-card p-6 mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+              <Youtube size={24} className="text-red-600" />
             </div>
-          </div>
-          
-          <div className="admin-card p-6">
-            <div className="flex items-center gap-4">
-              <Filter size={18} className="text-slate-500" />
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showInactive}
-                  onChange={(e) => setShowInactive(e.target.checked)}
-                  className="rounded"
-                />
-                <span className="text-sm text-slate-600">Pasif kayıtları göster</span>
-              </label>
+            <div>
+              <p className="text-sm text-slate-500">Toplam YouTube Kazancı</p>
+              <p className="text-2xl font-bold text-red-600">{totalEarnings.toFixed(2)} ₺</p>
             </div>
           </div>
         </div>
@@ -251,7 +220,6 @@ const AdminYoutube = () => {
                   <th className="text-left py-4 px-4 font-semibold text-slate-700">Başlık</th>
                   <th className="text-center py-4 px-4 font-semibold text-slate-700">Tutar</th>
                   <th className="text-center py-4 px-4 font-semibold text-slate-700">Tarih</th>
-                  <th className="text-center py-4 px-4 font-semibold text-slate-700">Durum</th>
                   <th className="text-right py-4 px-4 font-semibold text-slate-700">İşlemler</th>
                 </tr>
               </thead>
@@ -262,7 +230,6 @@ const AdminYoutube = () => {
                     <td className="py-4 px-4 text-slate-600">{record.title}</td>
                     <td className="py-4 px-4 text-center font-semibold text-green-600">{record.amount} ₺</td>
                     <td className="py-4 px-4 text-center text-slate-600">{record.date}</td>
-                    <td className="py-4 px-4 text-center">{getStatusBadge(record.status)}</td>
                     <td className="py-4 px-4">
                       <div className="flex items-center justify-end gap-2">
                         <Button
@@ -273,21 +240,10 @@ const AdminYoutube = () => {
                         >
                           <Edit size={16} />
                         </Button>
-                        {record.status === 'active' && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDelete(record.id, true)}
-                            className="text-orange-600 hover:bg-orange-50"
-                            data-testid={`youtube-deactivate-btn-${record.id}`}
-                          >
-                            Pasife Al
-                          </Button>
-                        )}
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleDelete(record.id, false)}
+                          onClick={() => handleDelete(record.id)}
                           className="text-red-600 hover:bg-red-50"
                           data-testid={`youtube-delete-btn-${record.id}`}
                         >

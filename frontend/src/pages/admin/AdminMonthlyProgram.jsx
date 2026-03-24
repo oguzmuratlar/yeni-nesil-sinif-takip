@@ -4,7 +4,6 @@ import apiClient from '../../api/axios';
 import { Calendar, Filter, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { Button } from '../../components/ui/button';
 
 const AdminMonthlyProgram = () => {
   const [plannedLessons, setPlannedLessons] = useState([]);
@@ -14,7 +13,6 @@ const AdminMonthlyProgram = () => {
   const [selectedTeacher, setSelectedTeacher] = useState('all');
   const [selectedBranch, setSelectedBranch] = useState('all');
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState('list'); // 'list' or 'calendar'
 
   const months = [
     { value: '2024-12', label: 'Aralık 2024' },
@@ -69,17 +67,6 @@ const AdminMonthlyProgram = () => {
     acc[teacherName].push(pl);
     return acc;
   }, {});
-
-  // Get all unique dates from planned lessons
-  const getAllDates = () => {
-    const dates = new Set();
-    filteredLessons.forEach(pl => {
-      if (pl.dates) {
-        pl.dates.split(',').forEach(d => dates.add(d.trim()));
-      }
-    });
-    return Array.from(dates).sort();
-  };
 
   // Summary calculations
   const totalPlannedLessons = filteredLessons.reduce((sum, pl) => sum + pl.number_of_lessons, 0);
@@ -140,23 +127,6 @@ const AdminMonthlyProgram = () => {
                 ))}
               </SelectContent>
             </Select>
-
-            <div className="ml-auto flex gap-2">
-              <Button 
-                variant={viewMode === 'list' ? 'default' : 'outline'} 
-                size="sm"
-                onClick={() => setViewMode('list')}
-              >
-                Liste
-              </Button>
-              <Button 
-                variant={viewMode === 'calendar' ? 'default' : 'outline'} 
-                size="sm"
-                onClick={() => setViewMode('calendar')}
-              >
-                Takvim
-              </Button>
-            </div>
           </div>
         </div>
 
@@ -192,7 +162,7 @@ const AdminMonthlyProgram = () => {
               Öğretmenler ders planlaması yaptığında burada görünecektir
             </p>
           </div>
-        ) : viewMode === 'list' ? (
+        ) : (
           /* List View - Grouped by Teacher */
           <div className="space-y-6">
             {Object.entries(groupedByTeacher).map(([teacherName, lessons]) => (
@@ -210,6 +180,7 @@ const AdminMonthlyProgram = () => {
                     <thead>
                       <tr className="border-b">
                         <th className="text-left py-3 px-2 text-sm font-semibold text-slate-600">Öğrenci</th>
+                        <th className="text-left py-3 px-2 text-sm font-semibold text-slate-600">Öğretmen</th>
                         <th className="text-left py-3 px-2 text-sm font-semibold text-slate-600">Branş</th>
                         <th className="text-left py-3 px-2 text-sm font-semibold text-slate-600">Tarihler</th>
                         <th className="text-center py-3 px-2 text-sm font-semibold text-slate-600">Ders Sayısı</th>
@@ -220,6 +191,11 @@ const AdminMonthlyProgram = () => {
                       {lessons.map((pl) => (
                         <tr key={pl.id} className="border-b hover:bg-slate-50">
                           <td className="py-3 px-2 font-medium">{pl.student_name}</td>
+                          <td className="py-3 px-2">
+                            <span className="text-sm text-slate-700 font-medium">
+                              {pl.teacher_name}
+                            </span>
+                          </td>
                           <td className="py-3 px-2">
                             <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
                               {pl.branch_name}
@@ -249,56 +225,6 @@ const AdminMonthlyProgram = () => {
                 </div>
               </div>
             ))}
-          </div>
-        ) : (
-          /* Calendar View */
-          <div className="admin-card p-6">
-            <h2 className="text-xl font-bold text-slate-800 mb-4">Takvim Görünümü</h2>
-            
-            <div className="overflow-x-auto">
-              <div className="grid grid-cols-7 gap-2 min-w-[800px]">
-                {/* Day headers */}
-                {['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'].map(day => (
-                  <div key={day} className="text-center font-semibold text-slate-600 py-2">
-                    {day}
-                  </div>
-                ))}
-                
-                {/* Calendar cells */}
-                {getAllDates().map(date => {
-                  const dayLessons = filteredLessons.filter(pl => 
-                    pl.dates && pl.dates.split(',').map(d => d.trim()).includes(date)
-                  );
-                  const totalForDay = dayLessons.reduce((s, l) => s + l.number_of_lessons, 0);
-                  
-                  return (
-                    <div 
-                      key={date} 
-                      className={`min-h-[100px] p-2 rounded-lg border ${
-                        dayLessons.length > 0 ? 'bg-blue-50 border-blue-200' : 'bg-slate-50 border-slate-200'
-                      }`}
-                    >
-                      <p className="font-semibold text-slate-800 text-sm mb-1">{date}</p>
-                      {dayLessons.length > 0 && (
-                        <>
-                          <p className="text-xs text-blue-600 font-medium">{totalForDay} ders</p>
-                          <div className="mt-1 space-y-0.5">
-                            {dayLessons.slice(0, 3).map((pl, i) => (
-                              <p key={i} className="text-xs text-slate-600 truncate">
-                                {pl.student_name}
-                              </p>
-                            ))}
-                            {dayLessons.length > 3 && (
-                              <p className="text-xs text-slate-400">+{dayLessons.length - 3} daha</p>
-                            )}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
           </div>
         )}
       </div>

@@ -9,7 +9,7 @@ import { Textarea } from '../../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { toast } from 'sonner';
-import { Plus, ArrowLeft, Edit, Trash2, Check, X, User } from 'lucide-react';
+import { Plus, ArrowLeft, Edit, Trash2, User } from 'lucide-react';
 
 const AdminCampStudents = () => {
   const { campId } = useParams();
@@ -25,7 +25,6 @@ const AdminCampStudents = () => {
     phone: '',
     registration_status: 'on_kayit',
     payment_amount: '',
-    payment_completed: false,
     notes: ''
   });
 
@@ -58,7 +57,6 @@ const AdminCampStudents = () => {
         phone: student.phone,
         registration_status: student.registration_status,
         payment_amount: student.payment_amount.toString(),
-        payment_completed: student.payment_completed,
         notes: student.notes || ''
       });
     } else {
@@ -69,7 +67,6 @@ const AdminCampStudents = () => {
         phone: '',
         registration_status: 'on_kayit',
         payment_amount: '',
-        payment_completed: false,
         notes: ''
       });
     }
@@ -83,13 +80,16 @@ const AdminCampStudents = () => {
     }
 
     try {
+      // Ödeme durumu statüye göre otomatik belirlenir
+      const isPaymentCompleted = formData.registration_status === 'kesin_kayit';
+      
       const payload = {
         student_name: formData.student_name,
         parent_name: formData.parent_name,
         phone: formData.phone,
         registration_status: formData.registration_status,
         payment_amount: parseFloat(formData.payment_amount),
-        payment_completed: formData.payment_completed,
+        payment_completed: isPaymentCompleted,  // Statüye bağlı otomatik
         notes: formData.notes || null,
         camp_id: campId
       };
@@ -123,12 +123,14 @@ const AdminCampStudents = () => {
     }
   };
 
-  const togglePayment = async (student) => {
+  // Statü değişikliği - ödeme durumu statüye bağlı
+  const handleStatusChange = async (student, newStatus) => {
     try {
       await apiClient.put(`/camp-students/${student.id}`, {
-        payment_completed: !student.payment_completed
+        registration_status: newStatus,
+        payment_completed: newStatus === 'kesin_kayit'  // Kesin kayıt = ödeme yapılmış
       });
-      toast.success(student.payment_completed ? 'Ödeme kaldırıldı' : 'Ödeme onaylandı');
+      toast.success('Durum güncellendi');
       fetchData();
     } catch (error) {
       toast.error('İşlem başarısız');
@@ -146,11 +148,11 @@ const AdminCampStudents = () => {
     }
   };
 
-  // Özet hesaplamaları
+  // Özet hesaplamaları - kesin kayıt = ödeme yapılmış
   const totalStudents = students.length;
   const confirmedCount = students.filter(s => s.registration_status === 'kesin_kayit').length;
-  const paidCount = students.filter(s => s.payment_completed).length;
-  const totalRevenue = students.filter(s => s.payment_completed).reduce((sum, s) => sum + s.payment_amount, 0);
+  const paidCount = confirmedCount;  // Kesin kayıt = ödeme yapılmış
+  const totalRevenue = students.filter(s => s.registration_status === 'kesin_kayit').reduce((sum, s) => sum + s.payment_amount, 0);
   const teacherEarning = paidCount * (camp?.per_student_teacher_fee || 0);
 
   if (loading) {
@@ -257,16 +259,11 @@ const AdminCampStudents = () => {
                     />
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="payment_completed"
-                      checked={formData.payment_completed}
-                      onChange={(e) => setFormData({ ...formData, payment_completed: e.target.checked })}
-                      className="rounded"
-                      data-testid="payment-completed-checkbox"
-                    />
-                    <Label htmlFor="payment_completed" className="cursor-pointer">Ödeme Yapıldı</Label>
+                  {/* Statüye göre otomatik ödeme bilgisi */}
+                  <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
+                    <p className="text-sm text-blue-700">
+                      <strong>Not:</strong> "Kesin Kayıt" durumu seçildiğinde ödeme otomatik olarak yapılmış kabul edilir ve öğretmen kazancına eklenir.
+                    </p>
                   </div>
 
                   <div className="space-y-2">
@@ -343,22 +340,33 @@ const AdminCampStudents = () => {
                     <td className="py-4 px-4 font-medium text-slate-800">{student.student_name}</td>
                     <td className="py-4 px-4 text-slate-600">{student.parent_name}</td>
                     <td className="py-4 px-4 text-slate-600">{student.phone}</td>
-                    <td className="py-4 px-4 text-center">{getStatusBadge(student.registration_status)}</td>
+                    <td className="py-4 px-4 text-center">
+                      <Select 
+                        value={student.registration_status} 
+                        onValueChange={(value) => handleStatusChange(student, value)}
+                      >
+                        <SelectTrigger className="w-32 h-8 text-xs" data-testid={`status-select-${student.id}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="on_kayit">Ön Kayıt</SelectItem>
+                          <SelectItem value="kesin_kayit">Kesin Kayıt</SelectItem>
+                          <SelectItem value="yedek">Yedek</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </td>
                     <td className="py-4 px-4 text-center font-semibold">{student.payment_amount} ₺</td>
                     <td className="py-4 px-4 text-center">
-                      <Button
-                        variant={student.payment_completed ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => togglePayment(student)}
-                        className={student.payment_completed ? "bg-green-600 hover:bg-green-700" : ""}
-                        data-testid={`toggle-payment-${student.id}`}
-                      >
-                        {student.payment_completed ? (
-                          <><Check size={16} className="mr-1" /> Ödendi</>
-                        ) : (
-                          <><X size={16} className="mr-1" /> Ödenmedi</>
-                        )}
-                      </Button>
+                      {/* Ödeme durumu statüye bağlı - sadece gösterim */}
+                      {student.registration_status === 'kesin_kayit' ? (
+                        <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700 font-medium">
+                          ✓ Ödendi
+                        </span>
+                      ) : (
+                        <span className="px-2 py-1 text-xs rounded-full bg-slate-100 text-slate-600">
+                          Bekliyor
+                        </span>
+                      )}
                     </td>
                     <td className="py-4 px-4">
                       <div className="flex items-center justify-end gap-2">
