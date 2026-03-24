@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import TeacherLayout from '../../components/layouts/TeacherLayout';
 import apiClient from '../../api/axios';
 import { useAuth } from '../../contexts/AuthContext';
-import { Wallet, BookOpen, Tent } from 'lucide-react';
+import { Wallet, BookOpen, Tent, Youtube } from 'lucide-react';
 import { toast } from 'sonner';
 
 const TeacherBalance = () => {
@@ -72,8 +72,8 @@ const TeacherBalance = () => {
           </div>
         </div>
 
-        {/* Kazanç Detayları */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+        {/* Kazanç Detayları - 3 Sütun */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
           <div className="teacher-card p-6">
             <div className="flex items-center gap-3 mb-4">
               <BookOpen size={24} className="text-blue-600" />
@@ -89,18 +89,27 @@ const TeacherBalance = () => {
               <h3 className="text-lg font-bold text-slate-800">Kamp Kazancı</h3>
             </div>
             <p className="text-3xl font-bold text-emerald-600">{balanceData.camp_earnings?.toFixed(2) || '0.00'} ₺</p>
-            <p className="text-sm text-slate-500 mt-2">Ödeme yapan kamp katılımcılarından</p>
+            <p className="text-sm text-slate-500 mt-2">Ödeme yapan katılımcılardan</p>
+          </div>
+
+          <div className="teacher-card p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <Youtube size={24} className="text-red-600" />
+              <h3 className="text-lg font-bold text-slate-800">YouTube Kazancı</h3>
+            </div>
+            <p className="text-3xl font-bold text-red-600">{balanceData.youtube_earnings?.toFixed(2) || '0.00'} ₺</p>
+            <p className="text-sm text-slate-500 mt-2">Video çekimlerinden</p>
           </div>
         </div>
 
         {/* Kamp Kazanç Detayları */}
         {balanceData.camp_earnings_details && balanceData.camp_earnings_details.length > 0 && (
-          <div className="teacher-card p-8 mb-10">
-            <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-3">
-              <Tent size={24} className="text-emerald-600" />
+          <div className="teacher-card p-8 mb-6">
+            <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-3">
+              <Tent size={20} className="text-emerald-600" />
               Kamp Kazanç Detayları
             </h2>
-            <div className="space-y-4">
+            <div className="space-y-3">
               {balanceData.camp_earnings_details.map((camp, index) => (
                 <div key={index} className="flex items-center justify-between p-4 bg-emerald-50 rounded-xl">
                   <div>
@@ -110,6 +119,27 @@ const TeacherBalance = () => {
                     </p>
                   </div>
                   <p className="font-bold text-emerald-600 text-xl">{camp.earning?.toFixed(2)} ₺</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* YouTube Kazanç Detayları */}
+        {balanceData.youtube_earnings_details && balanceData.youtube_earnings_details.length > 0 && (
+          <div className="teacher-card p-8 mb-6">
+            <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-3">
+              <Youtube size={20} className="text-red-600" />
+              YouTube Kazanç Detayları
+            </h2>
+            <div className="space-y-3">
+              {balanceData.youtube_earnings_details.map((yt, index) => (
+                <div key={index} className="flex items-center justify-between p-4 bg-red-50 rounded-xl">
+                  <div>
+                    <p className="font-semibold text-slate-800">{yt.title}</p>
+                    <p className="text-sm text-stone-600">{yt.date}</p>
+                  </div>
+                  <p className="font-bold text-red-600 text-xl">{yt.amount?.toFixed(2)} ₺</p>
                 </div>
               ))}
             </div>

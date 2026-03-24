@@ -320,6 +320,38 @@ class CampStudentUpdate(BaseModel):
     payment_completed: Optional[bool] = None
     notes: Optional[str] = None
 
+# ============= YOUTUBE CONTENT MODELS =============
+
+class YouTubeContentStatus:
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+
+class YouTubeContent(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    teacher_id: str  # Öğretmen
+    title: str  # Video başlığı
+    amount: float  # Tutar (kazanç)
+    date: str  # Çekim tarihi
+    status: str = YouTubeContentStatus.ACTIVE  # active / inactive
+    season_id: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class YouTubeContentCreate(BaseModel):
+    teacher_id: str
+    title: str
+    amount: float
+    date: Optional[str] = None  # Yoksa bugünün tarihi
+    season_id: Optional[str] = None
+
+class YouTubeContentUpdate(BaseModel):
+    teacher_id: Optional[str] = None
+    title: Optional[str] = None
+    amount: Optional[float] = None
+    date: Optional[str] = None
+    status: Optional[str] = None
+    season_id: Optional[str] = None
+
 # ============= AUTH HELPERS =============
 
 def verify_password(plain_password, hashed_password):
@@ -906,19 +938,34 @@ async def get_teacher_balance(teacher_id: str, current_user: User = Depends(get_
                 "earning": camp_earning
             })
     
-    # Toplam kazanç = Ders kazancı + Kamp kazancı
-    grand_total_earnings = total_earnings + total_camp_earnings
+    # YouTube kazançlarını hesapla (sadece aktif kayıtlar)
+    youtube_records = await db.youtube_contents.find({
+        "teacher_id": teacher_id,
+        "status": YouTubeContentStatus.ACTIVE
+    }, {"_id": 0}).to_list(1000)
+    total_youtube_earnings = sum([r["amount"] for r in youtube_records])
+    
+    youtube_earnings_details = [{
+        "title": r["title"],
+        "amount": r["amount"],
+        "date": r["date"]
+    } for r in youtube_records]
+    
+    # Toplam kazanç = Ders kazancı + Kamp kazancı + YouTube kazancı
+    grand_total_earnings = total_earnings + total_camp_earnings + total_youtube_earnings
     balance = grand_total_earnings - total_paid
     
     return {
         "teacher_id": teacher_id,
         "lesson_earnings": total_earnings,
         "camp_earnings": total_camp_earnings,
+        "youtube_earnings": total_youtube_earnings,
         "total_earnings": grand_total_earnings,
         "total_paid": total_paid,
         "balance": balance,
         "payments": payments,
-        "camp_earnings_details": camp_earnings_details
+        "camp_earnings_details": camp_earnings_details,
+        "youtube_earnings_details": youtube_earnings_details
     }
 
 # ============= STUDENT GROUP ROUTES =============
@@ -1422,6 +1469,126 @@ async def get_teacher_camp_earnings(teacher_id: str, current_user: User = Depend
         "teacher_id": teacher_id,
         "total_camp_earnings": total_earnings,
         "camp_details": camp_earnings
+    }
+
+# ============= YOUTUBE CONTENT ROUTES =============
+
+@api_router.get("/youtube-contents")
+async def get_youtube_contents(include_inactive: bool = False, current_user: User = Depends(get_current_user)):
+    """YouTube kayıtlarını listele. Admin tümünü, öğretmen sadece kendisinin görür."""
+    query = {}
+    
+    if not include_inactive:
+        query["status"] = YouTubeContentStatus.ACTIVE
+    
+    # Öğretmen ise sadece kendi kayıtlarını görsün
+    if current_user.user_type == "teacher":
+        query["teacher_id"] = current_user.teacher_id
+    
+    records = await db.youtube_contents.find(query, {"_id": 0}).to_list(1000)
+    
+    # Öğretmen bilgilerini ekle
+    enriched = []
+    for record in records:
+        teacher = await db.teachers.find_one({"id": record["teacher_id"]}, {"_id": 0, "name": 1})
+        enriched.append({
+            **record,
+            "teacher_name": teacher["name"] if teacher else "Bilinmiyor"
+        })
+    
+    return enriched
+
+@api_router.get("/youtube-contents/{record_id}")
+async def get_youtube_content(record_id: str, current_user: User = Depends(get_current_user)):
+    """Tek bir YouTube kaydını getir."""
+    record = await db.youtube_contents.find_one({"id": record_id}, {"_id": 0})
+    if not record:
+        raise HTTPException(status_code=404, detail="YouTube content not found")
+    
+    # Öğretmen ise sadece kendi kaydını görsün
+    if current_user.user_type == "teacher" and record["teacher_id"] != current_user.teacher_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    return record
+
+@api_router.post("/youtube-contents", response_model=YouTubeContent)
+async def create_youtube_content(data: YouTubeContentCreate, current_user: User = Depends(get_current_user)):
+    """Yeni YouTube kaydı oluştur. Sadece admin."""
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can create YouTube content records")
+    
+    # Öğretmen kontrolü
+    teacher = await db.teachers.find_one({"id": data.teacher_id})
+    if not teacher:
+        raise HTTPException(status_code=404, detail="Teacher not found")
+    
+    # Tarih yoksa bugünü kullan
+    record_data = data.model_dump()
+    if not record_data.get("date"):
+        record_data["date"] = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    
+    record = YouTubeContent(**record_data)
+    doc = record.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.youtube_contents.insert_one(doc)
+    return record
+
+@api_router.put("/youtube-contents/{record_id}")
+async def update_youtube_content(record_id: str, data: YouTubeContentUpdate, current_user: User = Depends(get_current_user)):
+    """YouTube kaydını güncelle. Sadece admin."""
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can update YouTube content records")
+    
+    record = await db.youtube_contents.find_one({"id": record_id})
+    if not record:
+        raise HTTPException(status_code=404, detail="YouTube content not found")
+    
+    update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+    if update_data:
+        await db.youtube_contents.update_one({"id": record_id}, {"$set": update_data})
+    
+    updated_record = await db.youtube_contents.find_one({"id": record_id}, {"_id": 0})
+    return updated_record
+
+@api_router.delete("/youtube-contents/{record_id}")
+async def delete_youtube_content(record_id: str, soft_delete: bool = True, current_user: User = Depends(get_current_user)):
+    """YouTube kaydını sil veya pasife al. Sadece admin."""
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can delete YouTube content records")
+    
+    record = await db.youtube_contents.find_one({"id": record_id})
+    if not record:
+        raise HTTPException(status_code=404, detail="YouTube content not found")
+    
+    if soft_delete:
+        # Soft delete - status'u inactive yap
+        await db.youtube_contents.update_one({"id": record_id}, {"$set": {"status": YouTubeContentStatus.INACTIVE}})
+        return {"message": "YouTube content marked as inactive"}
+    else:
+        # Hard delete
+        await db.youtube_contents.delete_one({"id": record_id})
+        return {"message": "YouTube content deleted successfully"}
+
+@api_router.get("/teacher-youtube-earnings/{teacher_id}")
+async def get_teacher_youtube_earnings(teacher_id: str, current_user: User = Depends(get_current_user)):
+    """Öğretmenin YouTube kazançlarını hesapla. Sadece aktif kayıtlar sayılır."""
+    # Öğretmen ise sadece kendi kazancını görsün
+    if current_user.user_type == "teacher" and current_user.teacher_id != teacher_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Sadece aktif YouTube kayıtlarını al
+    records = await db.youtube_contents.find({
+        "teacher_id": teacher_id,
+        "status": YouTubeContentStatus.ACTIVE
+    }, {"_id": 0}).to_list(1000)
+    
+    total_earnings = sum([r["amount"] for r in records])
+    
+    return {
+        "teacher_id": teacher_id,
+        "total_youtube_earnings": total_earnings,
+        "record_count": len(records),
+        "records": records
     }
 
 # ============= INCLUDE ROUTER =============

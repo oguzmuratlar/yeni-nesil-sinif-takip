@@ -12,7 +12,8 @@ import {
   Landmark,
   BookOpen,
   UsersRound,
-  Tent
+  Tent,
+  Youtube
 } from 'lucide-react';
 
 const AdminLayout = ({ children }) => {
@@ -31,6 +32,7 @@ const AdminLayout = ({ children }) => {
     { path: '/admin/teachers', label: 'Öğretmenler', icon: GraduationCap },
     { path: '/admin/groups', label: 'Gruplar', icon: UsersRound },
     { path: '/admin/camps', label: 'Kamplar', icon: Tent },
+    { path: '/admin/youtube', label: 'YouTube', icon: Youtube },
     { path: '/admin/branches', label: 'Branşlar', icon: BookOpen },
     { path: '/admin/payments', label: 'Ödemeler', icon: CreditCard },
     { path: '/admin/bank-accounts', label: 'Banka Hesapları', icon: Landmark },

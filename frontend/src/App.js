@@ -34,6 +34,7 @@ import AdminGroupForm from "./pages/admin/AdminGroupForm";
 import AdminGroupLesson from "./pages/admin/AdminGroupLesson";
 import AdminCamps from "./pages/admin/AdminCamps";
 import AdminCampStudents from "./pages/admin/AdminCampStudents";
+import AdminYoutube from "./pages/admin/AdminYoutube";
 
 // Teacher Pages
 import TeacherStudents from "./pages/teacher/TeacherStudents";
@@ -44,6 +45,7 @@ import TeacherBalance from "./pages/teacher/TeacherBalance";
 import TeacherGroupLessons from "./pages/teacher/TeacherGroupLessons";
 import TeacherGroupPlannedLessons from "./pages/teacher/TeacherGroupPlannedLessons";
 import TeacherCamps from "./pages/teacher/TeacherCamps";
+import TeacherYoutube from "./pages/teacher/TeacherYoutube";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -192,6 +194,11 @@ function App() {
                 <AdminCampStudents />
               </ProtectedRoute>
             } />
+            <Route path="/admin/youtube" element={
+              <ProtectedRoute requiredRole="admin">
+                <AdminYoutube />
+              </ProtectedRoute>
+            } />
 
             {/* Teacher Routes */}
             <Route path="/teacher/dashboard" element={
@@ -237,6 +244,11 @@ function App() {
             <Route path="/teacher/camps" element={
               <ProtectedRoute requiredRole="teacher">
                 <TeacherCamps />
+              </ProtectedRoute>
+            } />
+            <Route path="/teacher/youtube" element={
+              <ProtectedRoute requiredRole="teacher">
+                <TeacherYoutube />
               </ProtectedRoute>
             } />
           </Routes>

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { Users, Wallet, LogOut, Home, Tent } from 'lucide-react';
+import { Users, Wallet, LogOut, Home, Tent, Youtube } from 'lucide-react';
 
 const TeacherLayout = ({ children }) => {
   const { logout } = useAuth();
@@ -17,6 +17,7 @@ const TeacherLayout = ({ children }) => {
     { path: '/teacher/dashboard', label: 'Ana Sayfa', icon: Home },
     { path: '/teacher/students', label: 'Öğrencilerim', icon: Users },
     { path: '/teacher/camps', label: 'Kamplarım', icon: Tent },
+    { path: '/teacher/youtube', label: 'YouTube', icon: Youtube },
     { path: '/teacher/balance', label: 'Bakiye Takip', icon: Wallet },
   ];
 
