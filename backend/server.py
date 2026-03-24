@@ -251,6 +251,75 @@ class PaymentCreate(BaseModel):
     expense_category: Optional[str] = None
     season_id: Optional[str] = None
 
+# ============= CAMP MODELS =============
+
+class CampStatus:
+    ACTIVE = "active"
+    COMPLETED = "completed"
+
+class RegistrationStatus:
+    ON_KAYIT = "on_kayit"  # Ön Kayıt
+    KESIN_KAYIT = "kesin_kayit"  # Kesin Kayıt
+    YEDEK = "yedek"  # Yedek
+
+class Camp(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str  # Kamp adı
+    class_level: str  # Kamp sınıfı (5, 6, 7, 8 vb.)
+    teacher_id: str  # Öğretmen
+    per_student_teacher_fee: float  # Öğretmene öğrenci başı verilecek ücret
+    status: str = CampStatus.ACTIVE  # active / completed
+    season_id: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class CampCreate(BaseModel):
+    name: str
+    class_level: str
+    teacher_id: str
+    per_student_teacher_fee: float
+    season_id: Optional[str] = None
+
+class CampUpdate(BaseModel):
+    name: Optional[str] = None
+    class_level: Optional[str] = None
+    teacher_id: Optional[str] = None
+    per_student_teacher_fee: Optional[float] = None
+    status: Optional[str] = None
+    season_id: Optional[str] = None
+
+class CampStudent(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    camp_id: str  # Hangi kamp
+    student_name: str  # Öğrenci adı
+    parent_name: str  # Veli adı
+    phone: str  # Telefon numarası
+    registration_status: str = RegistrationStatus.ON_KAYIT  # on_kayit / kesin_kayit / yedek
+    payment_amount: float  # Ödeme tutarı
+    payment_completed: bool = False  # Ödeme yapıldı mı
+    notes: Optional[str] = None  # Not alanı
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class CampStudentCreate(BaseModel):
+    camp_id: str
+    student_name: str
+    parent_name: str
+    phone: str
+    registration_status: str = RegistrationStatus.ON_KAYIT
+    payment_amount: float
+    payment_completed: bool = False
+    notes: Optional[str] = None
+
+class CampStudentUpdate(BaseModel):
+    student_name: Optional[str] = None
+    parent_name: Optional[str] = None
+    phone: Optional[str] = None
+    registration_status: Optional[str] = None
+    payment_amount: Optional[float] = None
+    payment_completed: Optional[bool] = None
+    notes: Optional[str] = None
+
 # ============= AUTH HELPERS =============
 
 def verify_password(plain_password, hashed_password):
@@ -815,14 +884,41 @@ async def get_teacher_balance(teacher_id: str, current_user: User = Depends(get_
     ).to_list(1000)
     
     total_paid = sum([p["amount"] for p in payments])
-    balance = total_earnings - total_paid
+    
+    # Kamp kazançlarını hesapla (sadece ödeme yapılmış öğrenciler)
+    camps = await db.camps.find({"teacher_id": teacher_id}, {"_id": 0}).to_list(1000)
+    total_camp_earnings = 0
+    camp_earnings_details = []
+    
+    for camp in camps:
+        paid_students_count = await db.camp_students.count_documents({
+            "camp_id": camp["id"],
+            "payment_completed": True
+        })
+        camp_earning = paid_students_count * camp["per_student_teacher_fee"]
+        total_camp_earnings += camp_earning
+        
+        if camp_earning > 0:
+            camp_earnings_details.append({
+                "camp_name": camp["name"],
+                "paid_students": paid_students_count,
+                "per_student_fee": camp["per_student_teacher_fee"],
+                "earning": camp_earning
+            })
+    
+    # Toplam kazanç = Ders kazancı + Kamp kazancı
+    grand_total_earnings = total_earnings + total_camp_earnings
+    balance = grand_total_earnings - total_paid
     
     return {
         "teacher_id": teacher_id,
-        "total_earnings": total_earnings,
+        "lesson_earnings": total_earnings,
+        "camp_earnings": total_camp_earnings,
+        "total_earnings": grand_total_earnings,
         "total_paid": total_paid,
         "balance": balance,
-        "payments": payments
+        "payments": payments,
+        "camp_earnings_details": camp_earnings_details
     }
 
 # ============= STUDENT GROUP ROUTES =============
@@ -1111,6 +1207,222 @@ async def init_data():
     await db.users.insert_one(doc)
     
     return {"message": "Data initialized successfully"}
+
+# ============= CAMP ROUTES =============
+
+@api_router.get("/camps")
+async def get_camps(include_completed: bool = False, current_user: User = Depends(get_current_user)):
+    """Kampları listele. Varsayılan olarak sadece aktif kamplar döner."""
+    query = {}
+    if not include_completed:
+        query["status"] = CampStatus.ACTIVE
+    
+    # Öğretmen ise sadece kendi kamplarını görsün
+    if current_user.user_type == "teacher":
+        query["teacher_id"] = current_user.teacher_id
+    
+    camps = await db.camps.find(query, {"_id": 0}).to_list(1000)
+    
+    # Her kamp için istatistikleri hesapla
+    enriched_camps = []
+    for camp in camps:
+        # Kamp katılımcılarını al
+        participants = await db.camp_students.find({"camp_id": camp["id"]}, {"_id": 0}).to_list(1000)
+        
+        total_count = len(participants)
+        confirmed_count = len([p for p in participants if p.get("registration_status") == RegistrationStatus.KESIN_KAYIT])
+        paid_count = len([p for p in participants if p.get("payment_completed")])
+        
+        # Öğretmen bilgisi
+        teacher = await db.teachers.find_one({"id": camp["teacher_id"]}, {"_id": 0, "name": 1})
+        
+        enriched_camps.append({
+            **camp,
+            "teacher_name": teacher["name"] if teacher else "Bilinmiyor",
+            "total_participants": total_count,
+            "confirmed_count": confirmed_count,
+            "paid_count": paid_count
+        })
+    
+    return enriched_camps
+
+@api_router.get("/camps/{camp_id}")
+async def get_camp(camp_id: str, current_user: User = Depends(get_current_user)):
+    """Tek bir kampı getir."""
+    camp = await db.camps.find_one({"id": camp_id}, {"_id": 0})
+    if not camp:
+        raise HTTPException(status_code=404, detail="Camp not found")
+    
+    # Öğretmen ise sadece kendi kampını görsün
+    if current_user.user_type == "teacher" and camp["teacher_id"] != current_user.teacher_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    return camp
+
+@api_router.post("/camps", response_model=Camp)
+async def create_camp(camp_data: CampCreate, current_user: User = Depends(get_current_user)):
+    """Yeni kamp oluştur. Sadece admin."""
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can create camps")
+    
+    camp = Camp(**camp_data.model_dump())
+    doc = camp.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.camps.insert_one(doc)
+    return camp
+
+@api_router.put("/camps/{camp_id}")
+async def update_camp(camp_id: str, camp_data: CampUpdate, current_user: User = Depends(get_current_user)):
+    """Kamp güncelle. Sadece admin."""
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can update camps")
+    
+    camp = await db.camps.find_one({"id": camp_id})
+    if not camp:
+        raise HTTPException(status_code=404, detail="Camp not found")
+    
+    update_data = {k: v for k, v in camp_data.model_dump().items() if v is not None}
+    if update_data:
+        await db.camps.update_one({"id": camp_id}, {"$set": update_data})
+    
+    updated_camp = await db.camps.find_one({"id": camp_id}, {"_id": 0})
+    return updated_camp
+
+@api_router.put("/camps/{camp_id}/complete")
+async def complete_camp(camp_id: str, current_user: User = Depends(get_current_user)):
+    """Kampı tamamlandı durumuna çek. Sadece admin."""
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can complete camps")
+    
+    camp = await db.camps.find_one({"id": camp_id})
+    if not camp:
+        raise HTTPException(status_code=404, detail="Camp not found")
+    
+    await db.camps.update_one({"id": camp_id}, {"$set": {"status": CampStatus.COMPLETED}})
+    return {"message": "Camp marked as completed"}
+
+@api_router.delete("/camps/{camp_id}")
+async def delete_camp(camp_id: str, current_user: User = Depends(get_current_user)):
+    """Kampı sil. Sadece admin. Katılımcısı varsa silemez."""
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can delete camps")
+    
+    # Katılımcı kontrolü
+    participant_count = await db.camp_students.count_documents({"camp_id": camp_id})
+    if participant_count > 0:
+        raise HTTPException(status_code=400, detail="Cannot delete camp with participants. Remove participants first.")
+    
+    result = await db.camps.delete_one({"id": camp_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Camp not found")
+    
+    return {"message": "Camp deleted successfully"}
+
+# ============= CAMP STUDENT ROUTES =============
+
+@api_router.get("/camps/{camp_id}/students")
+async def get_camp_students(camp_id: str, current_user: User = Depends(get_current_user)):
+    """Kamp katılımcılarını listele."""
+    camp = await db.camps.find_one({"id": camp_id}, {"_id": 0})
+    if not camp:
+        raise HTTPException(status_code=404, detail="Camp not found")
+    
+    # Öğretmen ise sadece kendi kampını görsün
+    if current_user.user_type == "teacher" and camp["teacher_id"] != current_user.teacher_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    students = await db.camp_students.find({"camp_id": camp_id}, {"_id": 0}).to_list(1000)
+    return students
+
+@api_router.post("/camps/{camp_id}/students", response_model=CampStudent)
+async def add_camp_student(camp_id: str, student_data: CampStudentCreate, current_user: User = Depends(get_current_user)):
+    """Kampa öğrenci ekle. Sadece admin."""
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can add camp students")
+    
+    camp = await db.camps.find_one({"id": camp_id})
+    if not camp:
+        raise HTTPException(status_code=404, detail="Camp not found")
+    
+    # Camp ID'yi override et
+    student_data_dict = student_data.model_dump()
+    student_data_dict["camp_id"] = camp_id
+    
+    student = CampStudent(**student_data_dict)
+    doc = student.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.camp_students.insert_one(doc)
+    return student
+
+@api_router.put("/camp-students/{student_id}")
+async def update_camp_student(student_id: str, student_data: CampStudentUpdate, current_user: User = Depends(get_current_user)):
+    """Kamp öğrencisini güncelle. Sadece admin."""
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can update camp students")
+    
+    student = await db.camp_students.find_one({"id": student_id})
+    if not student:
+        raise HTTPException(status_code=404, detail="Camp student not found")
+    
+    update_data = {k: v for k, v in student_data.model_dump().items() if v is not None}
+    if update_data:
+        await db.camp_students.update_one({"id": student_id}, {"$set": update_data})
+    
+    updated_student = await db.camp_students.find_one({"id": student_id}, {"_id": 0})
+    return updated_student
+
+@api_router.delete("/camp-students/{student_id}")
+async def delete_camp_student(student_id: str, current_user: User = Depends(get_current_user)):
+    """Kamp öğrencisini sil. Sadece admin."""
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can delete camp students")
+    
+    result = await db.camp_students.delete_one({"id": student_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Camp student not found")
+    
+    return {"message": "Camp student deleted successfully"}
+
+# ============= CAMP TEACHER EARNINGS =============
+
+@api_router.get("/teacher-camp-earnings/{teacher_id}")
+async def get_teacher_camp_earnings(teacher_id: str, current_user: User = Depends(get_current_user)):
+    """Öğretmenin kamp kazançlarını hesapla. Sadece ödeme yapılmış öğrenciler sayılır."""
+    # Öğretmen ise sadece kendi kazancını görsün
+    if current_user.user_type == "teacher" and current_user.teacher_id != teacher_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Öğretmenin tüm kamplarını al
+    camps = await db.camps.find({"teacher_id": teacher_id}, {"_id": 0}).to_list(1000)
+    
+    camp_earnings = []
+    total_earnings = 0
+    
+    for camp in camps:
+        # Ödeme yapmış öğrencileri say
+        paid_students = await db.camp_students.find({
+            "camp_id": camp["id"],
+            "payment_completed": True
+        }, {"_id": 0}).to_list(1000)
+        
+        paid_count = len(paid_students)
+        camp_earning = paid_count * camp["per_student_teacher_fee"]
+        total_earnings += camp_earning
+        
+        camp_earnings.append({
+            "camp_id": camp["id"],
+            "camp_name": camp["name"],
+            "camp_status": camp["status"],
+            "per_student_fee": camp["per_student_teacher_fee"],
+            "paid_student_count": paid_count,
+            "total_earning": camp_earning
+        })
+    
+    return {
+        "teacher_id": teacher_id,
+        "total_camp_earnings": total_earnings,
+        "camp_details": camp_earnings
+    }
 
 # ============= INCLUDE ROUTER =============
 

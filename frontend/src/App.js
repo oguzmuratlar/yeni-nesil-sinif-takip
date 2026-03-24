@@ -32,6 +32,8 @@ import AdminBranches from "./pages/admin/AdminBranches";
 import AdminGroups from "./pages/admin/AdminGroups";
 import AdminGroupForm from "./pages/admin/AdminGroupForm";
 import AdminGroupLesson from "./pages/admin/AdminGroupLesson";
+import AdminCamps from "./pages/admin/AdminCamps";
+import AdminCampStudents from "./pages/admin/AdminCampStudents";
 
 // Teacher Pages
 import TeacherStudents from "./pages/teacher/TeacherStudents";
@@ -41,6 +43,7 @@ import TeacherStudentPlannedLessons from "./pages/teacher/TeacherStudentPlannedL
 import TeacherBalance from "./pages/teacher/TeacherBalance";
 import TeacherGroupLessons from "./pages/teacher/TeacherGroupLessons";
 import TeacherGroupPlannedLessons from "./pages/teacher/TeacherGroupPlannedLessons";
+import TeacherCamps from "./pages/teacher/TeacherCamps";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -179,6 +182,16 @@ function App() {
                 <AdminGroupLesson />
               </ProtectedRoute>
             } />
+            <Route path="/admin/camps" element={
+              <ProtectedRoute requiredRole="admin">
+                <AdminCamps />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/camps/:campId/students" element={
+              <ProtectedRoute requiredRole="admin">
+                <AdminCampStudents />
+              </ProtectedRoute>
+            } />
 
             {/* Teacher Routes */}
             <Route path="/teacher/dashboard" element={
@@ -219,6 +232,11 @@ function App() {
             <Route path="/teacher/groups/:groupId/planned-lessons" element={
               <ProtectedRoute requiredRole="teacher">
                 <TeacherGroupPlannedLessons />
+              </ProtectedRoute>
+            } />
+            <Route path="/teacher/camps" element={
+              <ProtectedRoute requiredRole="teacher">
+                <TeacherCamps />
               </ProtectedRoute>
             } />
           </Routes>
