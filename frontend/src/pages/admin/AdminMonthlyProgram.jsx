@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import AdminLayout from '../../components/layouts/AdminLayout';
 import apiClient from '../../api/axios';
-import { Calendar, Filter, Save, Download } from 'lucide-react';
+import { Calendar, Filter, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Input } from '../../components/ui/input';
@@ -18,6 +18,7 @@ const AdminMonthlyProgram = () => {
   const [filterTeacher, setFilterTeacher] = useState('all');
   const [filterBranch, setFilterBranch] = useState('all');
   const [filterPaymentStatus, setFilterPaymentStatus] = useState('all');
+  const [filterPaymentDay, setFilterPaymentDay] = useState('all');
 
   const months = [
     { value: '2024-12', label: 'Aralık 2024' },
@@ -79,29 +80,75 @@ const AdminMonthlyProgram = () => {
     saveNote(studentId, field, value);
   };
 
+  // Benzersiz ödeme günleri listesi
+  const uniquePaymentDays = useMemo(() => {
+    if (!programData?.students) return [];
+    const days = [...new Set(programData.students.map(s => s.payment_day).filter(Boolean))];
+    return days.sort((a, b) => parseInt(a) - parseInt(b));
+  }, [programData?.students]);
+
+  // Benzersiz ödeme durumları listesi
+  const uniquePaymentStatuses = useMemo(() => {
+    if (!programData?.students) return [];
+    const statuses = [...new Set(programData.students.map(s => s.payment_status).filter(Boolean))];
+    return statuses.sort();
+  }, [programData?.students]);
+
   // Filtreleme
   const filteredStudents = programData?.students?.filter(student => {
+    // Öğrenci adı filtresi
     if (filterStudent && !student.student_name.toLowerCase().includes(filterStudent.toLowerCase())) {
       return false;
     }
+    
+    // Öğretmen filtresi
     if (filterTeacher !== 'all') {
-      const hasTeacher = Object.keys(student.teacher_earnings || {}).some(
-        t => t === filterTeacher || programData.teachers.find(te => te.id === filterTeacher)?.name === t
-      );
+      const teacherName = programData.teachers.find(t => t.id === filterTeacher)?.name;
+      const hasTeacher = Object.keys(student.teacher_earnings || {}).includes(teacherName);
       if (!hasTeacher) return false;
     }
+    
+    // Branş filtresi
     if (filterBranch !== 'all') {
       if (!student.branch_details?.[filterBranch]) return false;
     }
+    
+    // Ödeme durumu filtresi
     if (filterPaymentStatus !== 'all') {
-      if (filterPaymentStatus === 'paid' && student.payment_status !== 'Ödendi') return false;
-      if (filterPaymentStatus === 'pending' && student.payment_status === 'Ödendi') return false;
+      const status = student.payment_status || '';
+      if (filterPaymentStatus === 'empty' && status !== '') return false;
+      if (filterPaymentStatus !== 'empty' && status !== filterPaymentStatus) return false;
     }
+    
+    // Ödeme günü filtresi
+    if (filterPaymentDay !== 'all') {
+      const day = student.payment_day || '';
+      if (day !== filterPaymentDay) return false;
+    }
+    
     return true;
   }) || [];
 
   // Genel toplamlar
   const grandTotal = filteredStudents.reduce((sum, s) => sum + (s.total_payment || 0), 0);
+
+  // Aktif filtre sayısı
+  const activeFilterCount = [
+    filterStudent,
+    filterTeacher !== 'all' ? filterTeacher : '',
+    filterBranch !== 'all' ? filterBranch : '',
+    filterPaymentStatus !== 'all' ? filterPaymentStatus : '',
+    filterPaymentDay !== 'all' ? filterPaymentDay : ''
+  ].filter(Boolean).length;
+
+  // Filtreleri temizle
+  const clearFilters = () => {
+    setFilterStudent('');
+    setFilterTeacher('all');
+    setFilterBranch('all');
+    setFilterPaymentStatus('all');
+    setFilterPaymentDay('all');
+  };
 
   if (loading) {
     return (
@@ -129,6 +176,11 @@ const AdminMonthlyProgram = () => {
             <div className="flex items-center gap-2">
               <Filter size={18} className="text-slate-500" />
               <span className="text-sm font-medium text-slate-700">Filtreler:</span>
+              {activeFilterCount > 0 && (
+                <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full">
+                  {activeFilterCount} aktif
+                </span>
+              )}
             </div>
             
             <Select value={selectedMonth} onValueChange={setSelectedMonth}>
@@ -151,7 +203,7 @@ const AdminMonthlyProgram = () => {
             />
 
             <Select value={filterTeacher} onValueChange={setFilterTeacher}>
-              <SelectTrigger className="w-40">
+              <SelectTrigger className="w-40" data-testid="teacher-filter">
                 <SelectValue placeholder="Öğretmen" />
               </SelectTrigger>
               <SelectContent>
@@ -163,7 +215,7 @@ const AdminMonthlyProgram = () => {
             </Select>
 
             <Select value={filterBranch} onValueChange={setFilterBranch}>
-              <SelectTrigger className="w-40">
+              <SelectTrigger className="w-40" data-testid="branch-filter">
                 <SelectValue placeholder="Branş" />
               </SelectTrigger>
               <SelectContent>
@@ -175,15 +227,41 @@ const AdminMonthlyProgram = () => {
             </Select>
 
             <Select value={filterPaymentStatus} onValueChange={setFilterPaymentStatus}>
-              <SelectTrigger className="w-40">
+              <SelectTrigger className="w-40" data-testid="payment-status-filter">
                 <SelectValue placeholder="Ödeme Durumu" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tümü</SelectItem>
-                <SelectItem value="paid">Ödendi</SelectItem>
-                <SelectItem value="pending">Bekliyor</SelectItem>
+                <SelectItem value="all">Tüm Durumlar</SelectItem>
+                <SelectItem value="empty">Boş (Girilmemiş)</SelectItem>
+                {uniquePaymentStatuses.map(status => (
+                  <SelectItem key={status} value={status}>{status}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
+
+            <Select value={filterPaymentDay} onValueChange={setFilterPaymentDay}>
+              <SelectTrigger className="w-40" data-testid="payment-day-filter">
+                <SelectValue placeholder="Ödeme Günü" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tüm Günler</SelectItem>
+                {uniquePaymentDays.map(day => (
+                  <SelectItem key={day} value={day}>Ayın {day}. günü</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {activeFilterCount > 0 && (
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={clearFilters}
+                className="text-slate-600 hover:text-slate-800"
+              >
+                <X size={16} className="mr-1" />
+                Temizle
+              </Button>
+            )}
           </div>
         </div>
 
@@ -211,7 +289,14 @@ const AdminMonthlyProgram = () => {
         {filteredStudents.length === 0 ? (
           <div className="admin-card p-12 text-center">
             <Calendar size={48} className="mx-auto mb-4 text-slate-400" />
-            <p className="text-slate-600 text-lg">Bu dönem için veri bulunamadı</p>
+            <p className="text-slate-600 text-lg">
+              {activeFilterCount > 0 ? 'Filtrelere uygun veri bulunamadı' : 'Bu dönem için veri bulunamadı'}
+            </p>
+            {activeFilterCount > 0 && (
+              <Button variant="outline" size="sm" onClick={clearFilters} className="mt-4">
+                Filtreleri Temizle
+              </Button>
+            )}
           </div>
         ) : (
           <div className="admin-card overflow-hidden">
@@ -226,7 +311,7 @@ const AdminMonthlyProgram = () => {
                     <th className="text-left py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">Dersler</th>
                     <th className="text-left py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">Öğrenci</th>
                     <th className="text-left py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">Veli</th>
-                    <th className="text-left py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">Ödeme Tarihi</th>
+                    <th className="text-left py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">Ödeme Günü</th>
                     <th className="text-right py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">Toplam</th>
                     
                     {/* Branş Kolonları */}
@@ -305,15 +390,13 @@ const AdminMonthlyProgram = () => {
                         {student.parent_name}
                       </td>
                       
-                      {/* Ödeme Tarihi - Editable */}
-                      <td className="py-2 px-2">
-                        <Input
-                          type="date"
-                          value={student.payment_date || ''}
-                          onChange={(e) => handleNoteChange(student.student_id, 'payment_date', e.target.value)}
-                          className="w-32 h-8 text-xs"
-                          data-testid={`payment-date-${student.student_id}`}
-                        />
+                      {/* Ödeme Günü - Read Only (Öğrenci profilinden) */}
+                      <td className="py-2 px-2 text-xs text-slate-700 whitespace-nowrap">
+                        {student.payment_day ? (
+                          <span className="bg-amber-50 text-amber-700 px-2 py-1 rounded font-medium">
+                            Ayın {student.payment_day}. günü
+                          </span>
+                        ) : '-'}
                       </td>
                       
                       {/* Toplam */}

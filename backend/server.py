@@ -71,7 +71,7 @@ class Student(BaseModel):
     parent_name: str
     phone: str
     level: str  # sınıf
-    payment_freq: str  # ödeme sıklığı
+    payment_freq: str  # ödeme günü (ayın kaçıncı günü)
     notes: Optional[str] = None
     status: str = "active"
     bank_account_id: Optional[str] = None
@@ -1321,7 +1321,6 @@ class MonthlyProgramNote(BaseModel):
     month: str
     note: Optional[str] = None
     payment_status: Optional[str] = None
-    payment_date: Optional[str] = None
 
 @api_router.get("/monthly-program-detailed")
 async def get_monthly_program_detailed(month: str, current_user: User = Depends(get_current_user)):
@@ -1473,7 +1472,7 @@ async def get_monthly_program_detailed(month: str, current_user: User = Depends(
             "courses": ", ".join(branch_names),
             "note": note_data.get("note", ""),
             "payment_status": note_data.get("payment_status", ""),
-            "payment_date": note_data.get("payment_date", ""),
+            "payment_day": student.get("payment_freq", ""),  # Öğrencinin ödeme günü (profilden)
             "total_payment": total_student_payment,
             "branch_details": branch_details,
             "teacher_earnings": teacher_earnings
@@ -1500,7 +1499,6 @@ async def update_monthly_program_note(
     month: str,
     note: Optional[str] = None,
     payment_status: Optional[str] = None,
-    payment_date: Optional[str] = None,
     current_user: User = Depends(get_current_user)
 ):
     """Aylık program notunu güncelle veya oluştur"""
@@ -1516,8 +1514,6 @@ async def update_monthly_program_note(
         update_data["note"] = note
     if payment_status is not None:
         update_data["payment_status"] = payment_status
-    if payment_date is not None:
-        update_data["payment_date"] = payment_date
     
     if existing:
         await db.monthly_program_notes.update_one(
