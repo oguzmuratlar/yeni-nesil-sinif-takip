@@ -4,7 +4,7 @@ import AdminLayout from '../../components/layouts/AdminLayout';
 import apiClient from '../../api/axios';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-import { Plus, Search, Book, Calendar } from 'lucide-react';
+import { Plus, Search, Book, Calendar, X, ChevronRight } from 'lucide-react';
 import { Badge } from '../../components/ui/badge';
 import { toast } from 'sonner';
 
@@ -56,27 +56,29 @@ const AdminStudents = () => {
 
   return (
     <AdminLayout>
-      <div>
-        <div className="flex items-center justify-between mb-8">
+      <div className="pb-24 lg:pb-0">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 lg:mb-8">
           <div>
-            <h1 className="text-4xl font-extrabold text-slate-800 mb-2" data-testid="admin-students-title">
+            <h1 className="page-title" data-testid="admin-students-title">
               Öğrenciler
             </h1>
-            <p className="text-slate-600">Tüm öğrencilerinizi görüntüleyin ve yönetin</p>
+            <p className="page-subtitle mt-1">Tüm öğrencilerinizi görüntüleyin ve yönetin</p>
           </div>
           <Button
             onClick={() => navigate('/admin/students/new')}
             data-testid="add-student-btn"
-            className="admin-btn"
+            className="admin-btn w-full sm:w-auto"
           >
             <Plus size={20} className="mr-2" />
             Öğrenci Ekle
           </Button>
         </div>
 
-        <div className="admin-card p-6 mb-6">
-          <div className="flex items-center justify-between">
-            <div className="relative flex-1 mr-4">
+        {/* Search & Filter */}
+        <div className="admin-card p-4 lg:p-6 mb-4 lg:mb-6">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
               <Input
                 type="text"
@@ -91,6 +93,7 @@ const AdminStudents = () => {
               onClick={() => setShowInactive(!showInactive)}
               variant={showInactive ? "default" : "outline"}
               data-testid="toggle-inactive-btn"
+              className="h-12 whitespace-nowrap"
             >
               {showInactive ? 'Sadece Aktifler' : 'Pasifleri Göster'}
             </Button>
@@ -102,19 +105,63 @@ const AdminStudents = () => {
             <p className="text-slate-600">Yükleniyor...</p>
           </div>
         ) : filteredStudents.length === 0 ? (
-          <div className="admin-card p-12 text-center">
+          <div className="admin-card p-8 lg:p-12 text-center">
             <p className="text-slate-600">Henüz öğrenci eklenmemiş</p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3 lg:space-y-4">
             {filteredStudents.map((student) => (
               <div
                 key={student.id}
                 data-testid={`student-card-${student.id}`}
-                className="admin-card p-6 hover:scale-[1.01] transition-all cursor-pointer"
-                onClick={() => setSelectedStudent(student)}
+                className="admin-card p-4 lg:p-6 active:bg-slate-50 transition-all cursor-pointer"
+                onClick={() => navigate(`/admin/students/${student.id}`)}
               >
-                <div className="flex items-center justify-between">
+                {/* Mobile Layout */}
+                <div className="lg:hidden">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="text-lg font-bold text-slate-800 truncate">{student.name}</h3>
+                        <Badge variant={student.status === 'active' ? 'default' : 'secondary'} className="text-xs shrink-0">
+                          {student.status === 'active' ? 'Aktif' : 'Pasif'}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-slate-600 truncate">Veli: {student.parent_name}</p>
+                      <p className="text-sm text-slate-500">Sınıf: {student.level}</p>
+                    </div>
+                    <ChevronRight size={20} className="text-slate-400 shrink-0 mt-1" />
+                  </div>
+                  
+                  {/* Mobile Action Buttons */}
+                  <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/admin/students/${student.id}/edit`);
+                      }}
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 h-10"
+                    >
+                      Düzenle
+                    </Button>
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleStudentStatus(student.id, student.status);
+                      }}
+                      variant={student.status === 'active' ? 'destructive' : 'default'}
+                      size="sm"
+                      className="flex-1 h-10"
+                    >
+                      {student.status === 'active' ? 'Pasifleştir' : 'Aktifleştir'}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Desktop Layout */}
+                <div className="hidden lg:flex items-center justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="text-xl font-bold text-slate-800">{student.name}</h3>
@@ -169,40 +216,44 @@ const AdminStudents = () => {
           </div>
         )}
 
-        {/* Selected Student Actions */}
+        {/* Selected Student Actions - Mobile optimized */}
         {selectedStudent && (
-          <div className="fixed bottom-0 left-64 right-0 bg-white border-t border-slate-200 shadow-lg p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-600 mb-1">Seçili Öğrenci</p>
-                <p className="font-bold text-slate-800">{selectedStudent.name}</p>
+          <div className="fixed bottom-0 left-0 lg:left-64 right-0 bg-white border-t border-slate-200 shadow-lg p-4 lg:p-6 z-20 safe-area-bottom">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center justify-between sm:block">
+                <div>
+                  <p className="text-xs lg:text-sm text-slate-600 mb-0.5">Seçili Öğrenci</p>
+                  <p className="font-bold text-slate-800">{selectedStudent.name}</p>
+                </div>
+                <button
+                  onClick={() => setSelectedStudent(null)}
+                  className="sm:hidden p-2 -mr-2 rounded-lg hover:bg-slate-100"
+                >
+                  <X size={20} className="text-slate-500" />
+                </button>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="grid grid-cols-2 sm:flex gap-2 lg:gap-3">
                 <Button
-                  onClick={() => {
-                    // Navigate to course selection for lessons
-                    navigate(`/admin/students/${selectedStudent.id}`);
-                  }}
+                  onClick={() => navigate(`/admin/students/${selectedStudent.id}`)}
                   data-testid="lesson-entry-btn"
-                  className="bg-green-600 hover:bg-green-700"
+                  className="bg-green-600 hover:bg-green-700 h-11 lg:h-10"
                 >
                   <Book size={18} className="mr-2" />
-                  Ders Giriş
+                  <span className="hidden sm:inline">Ders</span> Giriş
                 </Button>
                 <Button
-                  onClick={() => {
-                    navigate(`/admin/students/${selectedStudent.id}`);
-                  }}
+                  onClick={() => navigate(`/admin/students/${selectedStudent.id}`)}
                   data-testid="lesson-planning-btn"
-                  className="bg-purple-600 hover:bg-purple-700"
+                  className="bg-purple-600 hover:bg-purple-700 h-11 lg:h-10"
                 >
                   <Calendar size={18} className="mr-2" />
-                  Ders Planlama
+                  <span className="hidden sm:inline">Ders</span> Planlama
                 </Button>
                 <Button
                   onClick={() => setSelectedStudent(null)}
                   variant="outline"
                   data-testid="cancel-selection-btn"
+                  className="hidden sm:flex h-10"
                 >
                   İptal
                 </Button>

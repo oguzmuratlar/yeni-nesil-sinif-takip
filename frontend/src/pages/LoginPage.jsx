@@ -23,7 +23,6 @@ const LoginPage = () => {
     const result = await login(username, password);
     
     if (result.success) {
-      // Redirect based on user type
       if (result.user_type === 'admin') {
         navigate('/admin/dashboard');
       } else {
@@ -37,20 +36,27 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex">
-      {/* Left Side - Form */}
-      <div className="flex-1 flex items-center justify-center p-8 bg-white">
+    <div className="min-h-screen flex flex-col lg:flex-row">
+      {/* Form Side - Full width on mobile */}
+      <div className="flex-1 flex items-center justify-center p-6 lg:p-8 bg-white min-h-screen lg:min-h-0">
         <div className="w-full max-w-md">
-          <div className="mb-8">
-            <h1 className="text-4xl font-extrabold text-slate-800 mb-2" data-testid="login-title">
+          {/* Logo/Brand for mobile */}
+          <div className="lg:hidden text-center mb-8">
+            <div className="w-16 h-16 bg-blue-600 rounded-2xl mx-auto mb-4 flex items-center justify-center">
+              <span className="text-white text-2xl font-bold">EY</span>
+            </div>
+          </div>
+
+          <div className="mb-6 lg:mb-8">
+            <h1 className="text-3xl lg:text-4xl font-extrabold text-slate-800 mb-2" data-testid="login-title">
               Hoş Geldiniz
             </h1>
-            <p className="text-slate-600">
+            <p className="text-slate-600 text-sm lg:text-base">
               Eğitim yönetim sisteminize giriş yapın
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-5 lg:space-y-6">
             {error && (
               <div className="p-4 bg-red-50 border border-red-200 rounded-lg" data-testid="login-error">
                 <p className="text-red-600 text-sm">{error}</p>
@@ -58,7 +64,7 @@ const LoginPage = () => {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="username">Kullanıcı Adı</Label>
+              <Label htmlFor="username" className="text-sm font-medium">Kullanıcı Adı</Label>
               <Input
                 id="username"
                 type="text"
@@ -67,12 +73,13 @@ const LoginPage = () => {
                 placeholder="Kullanıcı adınızı girin"
                 required
                 data-testid="login-username-input"
-                className="h-12"
+                className="h-12 text-base"
+                autoComplete="username"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Şifre</Label>
+              <Label htmlFor="password" className="text-sm font-medium">Şifre</Label>
               <div className="relative">
                 <Input
                   id="password"
@@ -82,13 +89,15 @@ const LoginPage = () => {
                   placeholder="Şifrenizi girin"
                   required
                   data-testid="login-password-input"
-                  className="h-12 pr-12"
+                  className="h-12 text-base pr-12"
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
                   data-testid="toggle-password-visibility"
+                  aria-label={showPassword ? 'Şifreyi gizle' : 'Şifreyi göster'}
                 >
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
@@ -99,7 +108,7 @@ const LoginPage = () => {
               type="submit"
               disabled={loading}
               data-testid="login-submit-btn"
-              className="w-full h-12 text-base font-semibold bg-blue-600 hover:bg-blue-700"
+              className="w-full h-12 text-base font-semibold bg-blue-600 hover:bg-blue-700 active:bg-blue-800"
             >
               {loading ? (
                 <span>Yükleniyor...</span>
@@ -112,14 +121,14 @@ const LoginPage = () => {
             </Button>
           </form>
 
-          <div className="mt-8 p-4 bg-slate-50 rounded-lg">
+          <div className="mt-6 lg:mt-8 p-4 bg-slate-50 rounded-lg">
             <p className="text-sm text-slate-600 font-medium mb-2">Test Hesapları:</p>
             <p className="text-xs text-slate-500">Admin: admin / admin123</p>
           </div>
         </div>
       </div>
 
-      {/* Right Side - Image */}
+      {/* Image Side - Hidden on mobile */}
       <div 
         className="hidden lg:flex flex-1 bg-cover bg-center relative"
         style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1767102060241-130cb9260718?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2Mzl8MHwxfHNlYXJjaHwxfHxzdHVkZW50JTIwc3R1ZHlpbmclMjBtb2Rlcm4lMjBsaWJyYXJ5fGVufDB8fHx8MTc3NDI4ODg0Nnww&ixlib=rb-4.1.0&q=85)' }}

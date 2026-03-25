@@ -5,7 +5,7 @@ import apiClient from '../../api/axios';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Badge } from '../../components/ui/badge';
-import { Plus, Search, Wallet } from 'lucide-react';
+import { Plus, Search, Wallet, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 
 const AdminTeachers = () => {
@@ -54,26 +54,28 @@ const AdminTeachers = () => {
   return (
     <AdminLayout>
       <div>
-        <div className="flex items-center justify-between mb-8">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 lg:mb-8">
           <div>
-            <h1 className="text-4xl font-extrabold text-slate-800 mb-2" data-testid="admin-teachers-title">
+            <h1 className="page-title" data-testid="admin-teachers-title">
               Öğretmenler
             </h1>
-            <p className="text-slate-600">Öğretmenlerinizi yönetin</p>
+            <p className="page-subtitle mt-1">Öğretmenlerinizi yönetin</p>
           </div>
           <Button
             onClick={() => navigate('/admin/teachers/new')}
             data-testid="add-teacher-btn"
-            className="admin-btn"
+            className="admin-btn w-full sm:w-auto"
           >
             <Plus size={20} className="mr-2" />
             Öğretmen Ekle
           </Button>
         </div>
 
-        <div className="admin-card p-6 mb-6">
-          <div className="flex items-center justify-between">
-            <div className="relative flex-1 mr-4">
+        {/* Search & Filter */}
+        <div className="admin-card p-4 lg:p-6 mb-4 lg:mb-6">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
               <Input
                 type="text"
@@ -87,6 +89,7 @@ const AdminTeachers = () => {
             <Button
               onClick={() => setShowInactive(!showInactive)}
               variant={showInactive ? "default" : "outline"}
+              className="h-12 whitespace-nowrap"
             >
               {showInactive ? 'Sadece Aktifler' : 'Pasifleri Göster'}
             </Button>
@@ -98,18 +101,67 @@ const AdminTeachers = () => {
             <p className="text-slate-600">Yükleniyor...</p>
           </div>
         ) : filteredTeachers.length === 0 ? (
-          <div className="admin-card p-12 text-center">
+          <div className="admin-card p-8 lg:p-12 text-center">
             <p className="text-slate-600">Henüz öğretmen eklenmemiş</p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3 lg:space-y-4">
             {filteredTeachers.map((teacher) => (
               <div
                 key={teacher.id}
                 data-testid={`teacher-card-${teacher.id}`}
-                className="admin-card p-6"
+                className="admin-card p-4 lg:p-6"
               >
-                <div className="flex items-center justify-between">
+                {/* Mobile Layout */}
+                <div className="lg:hidden">
+                  <div 
+                    className="flex items-start justify-between mb-3 cursor-pointer"
+                    onClick={() => navigate(`/admin/teachers/${teacher.id}`)}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="text-lg font-bold text-slate-800 truncate">{teacher.name}</h3>
+                        <Badge variant={teacher.status === 'active' ? 'default' : 'secondary'} className="text-xs shrink-0">
+                          {teacher.status === 'active' ? 'Aktif' : 'Pasif'}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-slate-600">{teacher.phone}</p>
+                    </div>
+                    <ChevronRight size={20} className="text-slate-400 shrink-0 mt-1" />
+                  </div>
+                  
+                  {/* Mobile Action Buttons */}
+                  <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-100">
+                    <Button
+                      onClick={() => navigate(`/admin/teachers/${teacher.id}/edit`)}
+                      variant="outline"
+                      size="sm"
+                      className="h-10 text-xs"
+                    >
+                      Düzenle
+                    </Button>
+                    <Button
+                      onClick={() => navigate(`/admin/teachers/${teacher.id}/balance`)}
+                      variant="outline"
+                      size="sm"
+                      className="h-10 text-xs"
+                    >
+                      <Wallet size={14} className="mr-1" />
+                      Bakiye
+                    </Button>
+                    <Button
+                      onClick={() => toggleStatus(teacher.id, teacher.status)}
+                      size="sm"
+                      variant={teacher.status === 'active' ? 'destructive' : 'default'}
+                      className="h-10 text-xs"
+                    >
+                      {teacher.status === 'active' ? 'Pasif' : 'Aktif'}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Desktop Layout */}
+                <div className="hidden lg:flex items-center justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
                       <h3 className="text-xl font-bold text-slate-800">{teacher.name}</h3>

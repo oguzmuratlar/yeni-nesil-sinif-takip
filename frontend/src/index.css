@@ -11,6 +11,8 @@ body {
         sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Mobilde yatay scroll'u engelle */
+    overflow-x: hidden;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -20,6 +22,13 @@ h1, h2, h3, h4, h5, h6 {
 code {
     font-family:
         source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+}
+
+/* Touch-friendly defaults */
+@media (hover: none) and (pointer: coarse) {
+    button, a, input, select, textarea {
+        min-height: 44px;
+    }
 }
 
 @layer base {
@@ -57,22 +66,144 @@ code {
 }
 
 @layer utilities {
+    /* Background utilities */
     .admin-bg {
         background-color: #F8FAFC;
     }
     .teacher-bg {
         background-color: #FAFAF9;
     }
+
+    /* Card utilities - Mobile-first */
     .admin-card {
-        @apply bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-shadow;
+        @apply bg-white border border-slate-200 rounded-lg shadow-sm;
+        @apply hover:shadow-md transition-shadow;
     }
     .teacher-card {
-        @apply bg-white ring-1 ring-stone-100 rounded-2xl shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300;
+        @apply bg-white ring-1 ring-stone-100 rounded-xl lg:rounded-2xl shadow-sm;
+        @apply hover:shadow-lg transition-all duration-300;
+        @apply lg:hover:-translate-y-1;
     }
+
+    /* Button utilities - Mobile-first with touch-friendly sizing */
     .admin-btn {
-        @apply bg-blue-600 text-white hover:bg-blue-700 font-semibold shadow-sm transition-all active:scale-95 rounded-md px-6 py-2.5;
+        @apply bg-blue-600 text-white font-semibold shadow-sm transition-all;
+        @apply rounded-lg px-4 py-3 lg:px-6 lg:py-2.5;
+        @apply hover:bg-blue-700 active:scale-95 active:bg-blue-800;
+        @apply text-sm lg:text-base;
+        @apply min-h-[44px] lg:min-h-0;
     }
     .teacher-btn {
-        @apply bg-teal-600 text-white hover:bg-teal-700 font-medium shadow-sm hover:shadow-md transition-all rounded-full px-8 py-3;
+        @apply bg-teal-600 text-white font-medium shadow-sm transition-all;
+        @apply rounded-full px-6 py-3 lg:px-8;
+        @apply hover:bg-teal-700 hover:shadow-md active:scale-95;
+        @apply text-sm lg:text-base;
+        @apply min-h-[44px] lg:min-h-0;
     }
+
+    /* Mobile-first responsive table wrapper */
+    .table-responsive {
+        @apply w-full overflow-x-auto -mx-4 px-4 lg:mx-0 lg:px-0;
+    }
+
+    /* Mobile-first responsive grid */
+    .responsive-grid {
+        @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 lg:gap-6;
+    }
+
+    /* Mobile page title */
+    .page-title {
+        @apply text-2xl lg:text-4xl font-extrabold text-slate-800;
+    }
+    .page-subtitle {
+        @apply text-sm lg:text-base text-slate-600;
+    }
+
+    /* Mobile-friendly form elements */
+    .form-input-mobile {
+        @apply h-12 lg:h-10 text-base lg:text-sm;
+    }
+
+    /* Touch-friendly list items */
+    .touch-list-item {
+        @apply py-4 lg:py-3 px-4 active:bg-slate-50;
+    }
+
+    /* Mobile stat card */
+    .stat-card {
+        @apply p-4 lg:p-6 bg-white rounded-xl border border-slate-100;
+    }
+
+    /* Safe area padding for notched phones */
+    .safe-area-bottom {
+        padding-bottom: env(safe-area-inset-bottom, 0);
+    }
+    .safe-area-top {
+        padding-top: env(safe-area-inset-top, 0);
+    }
+
+    /* Hide scrollbar but keep functionality */
+    .scrollbar-hide {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+    .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+    }
+
+    /* Mobile action button (FAB style) */
+    .mobile-fab {
+        @apply fixed bottom-6 right-6 z-20;
+        @apply w-14 h-14 rounded-full shadow-lg;
+        @apply flex items-center justify-center;
+        @apply active:scale-90 transition-transform;
+    }
+}
+
+/* Mobile-first dialog/modal adjustments */
+@media (max-width: 640px) {
+    [role="dialog"] {
+        max-width: calc(100% - 2rem) !important;
+        max-height: calc(100vh - 4rem) !important;
+        margin: 1rem !important;
+    }
+    
+    [role="dialog"] > div {
+        padding: 1rem !important;
+    }
+}
+
+/* Better touch targets for small buttons */
+@media (hover: none) and (pointer: coarse) {
+    .btn-sm {
+        min-height: 40px !important;
+        min-width: 40px !important;
+    }
+}
+
+/* Prevent text from being too small on mobile */
+@media (max-width: 640px) {
+    html {
+        font-size: 16px;
+    }
+    
+    input, select, textarea {
+        font-size: 16px !important; /* Prevents zoom on iOS */
+    }
+}
+
+/* Animation for mobile menu */
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-slide-in {
+    animation: slideIn 0.2s ease-out;
 }

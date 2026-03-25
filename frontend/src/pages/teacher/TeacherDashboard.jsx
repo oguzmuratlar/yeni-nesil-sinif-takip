@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import TeacherLayout from '../../components/layouts/TeacherLayout';
-import { Users, Wallet, BookOpen, ArrowRight, Calendar, Tent, Youtube } from 'lucide-react';
+import { Users, Wallet, ArrowRight, Calendar, Tent, Youtube } from 'lucide-react';
 
 const TeacherDashboard = () => {
   const navigate = useNavigate();
@@ -25,7 +25,7 @@ const TeacherDashboard = () => {
     },
     {
       title: 'Ders Programı',
-      description: 'Ders planlamanızı görüntüleyin ve düzenleyin',
+      description: 'Ders planlamanızı görüntüleyin',
       icon: Calendar,
       color: 'bg-blue-500',
       path: '/teacher/schedule',
@@ -33,15 +33,15 @@ const TeacherDashboard = () => {
     },
     {
       title: 'Kamplarım',
-      description: 'Atanan kamplarınızı ve katılımcıları görüntüleyin',
+      description: 'Atanan kamplarınızı görüntüleyin',
       icon: Tent,
       color: 'bg-emerald-500',
       path: '/teacher/camps',
       testId: 'teacher-dashboard-camps-card'
     },
     {
-      title: 'YouTube Kazançları',
-      description: 'Video çekim kazançlarınızı görüntüleyin',
+      title: 'YouTube',
+      description: 'Video çekim kazançlarınız',
       icon: Youtube,
       color: 'bg-red-500',
       path: '/teacher/youtube',
@@ -52,16 +52,18 @@ const TeacherDashboard = () => {
   return (
     <TeacherLayout>
       <div className="max-w-5xl mx-auto">
-        <div className="mb-12 text-center">
-          <h1 className="text-4xl md:text-5xl font-extrabold text-slate-800 mb-3" data-testid="teacher-dashboard-title">
+        {/* Header - Mobile optimized */}
+        <div className="mb-8 lg:mb-12 text-center">
+          <h1 className="text-3xl lg:text-5xl font-extrabold text-slate-800 mb-2 lg:mb-3" data-testid="teacher-dashboard-title">
             Öğretmen Portalı
           </h1>
-          <p className="text-lg text-stone-600">
+          <p className="text-base lg:text-lg text-stone-600">
             Öğrencilerinizi yönetin ve dersleri takip edin
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+        {/* Cards Grid - Mobile optimized */}
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-6 mb-8 lg:mb-12">
           {cards.map((card) => {
             const Icon = card.icon;
             return (
@@ -69,30 +71,31 @@ const TeacherDashboard = () => {
                 key={card.path}
                 onClick={() => navigate(card.path)}
                 data-testid={card.testId}
-                className="teacher-card p-8 cursor-pointer group"
+                className="teacher-card p-4 lg:p-8 cursor-pointer group active:scale-95 transition-transform"
               >
-                <div className={`${card.color} w-14 h-14 rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform`}>
-                  <Icon size={28} className="text-white" />
+                <div className={`${card.color} w-10 h-10 lg:w-14 lg:h-14 rounded-lg lg:rounded-xl flex items-center justify-center mb-3 lg:mb-5 group-hover:scale-110 transition-transform`}>
+                  <Icon size={20} className="lg:hidden text-white" />
+                  <Icon size={28} className="hidden lg:block text-white" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-800 mb-2">{card.title}</h3>
-                <p className="text-stone-600 mb-4 text-sm leading-relaxed">{card.description}</p>
-                <div className="flex items-center gap-2 text-teal-600 font-semibold group-hover:gap-4 transition-all">
+                <h3 className="text-base lg:text-xl font-bold text-slate-800 mb-1 lg:mb-2">{card.title}</h3>
+                <p className="text-stone-600 text-xs lg:text-sm leading-relaxed hidden sm:block">{card.description}</p>
+                <div className="flex items-center gap-1 lg:gap-2 text-teal-600 font-semibold mt-2 lg:mt-4 group-hover:gap-2 lg:group-hover:gap-4 transition-all text-sm lg:text-base">
                   <span>Aç</span>
-                  <ArrowRight size={18} />
+                  <ArrowRight size={16} className="lg:hidden" />
+                  <ArrowRight size={18} className="hidden lg:block" />
                 </div>
               </div>
             );
           })}
         </div>
 
-        <div className="teacher-card p-10 bg-gradient-to-br from-teal-50 to-stone-50 text-center">
-          <BookOpen size={48} className="mx-auto mb-4 text-teal-600" />
-          <h3 className="text-2xl font-bold text-slate-800 mb-3">
-            Hoş Geldiniz! 🎓
+        {/* Welcome Card - Mobile optimized */}
+        <div className="teacher-card p-6 lg:p-10 bg-gradient-to-br from-teal-50 to-stone-50 text-center">
+          <h3 className="text-xl lg:text-2xl font-bold text-slate-800 mb-2 lg:mb-3">
+            Hoş Geldiniz!
           </h3>
-          <p className="text-stone-600 max-w-2xl mx-auto leading-relaxed">
-            Portalımız üzerinden öğrencilerinizin ders takibini yapabilir, 
-            ders planlarını oluşturabilir ve kazancınızı takip edebilirsiniz.
+          <p className="text-sm lg:text-base text-stone-600 max-w-2xl mx-auto leading-relaxed">
+            Portalımız üzerinden öğrencilerinizin ders takibini yapabilir ve kazancınızı takip edebilirsiniz.
           </p>
         </div>
       </div>

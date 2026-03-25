@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
@@ -13,13 +13,30 @@ import {
   BookOpen,
   UsersRound,
   Tent,
-  Youtube
+  Youtube,
+  Menu,
+  X
 } from 'lucide-react';
 
 const AdminLayout = ({ children }) => {
   const { logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Sayfa değiştiğinde sidebar'ı kapat (mobilde)
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
+
+  // Escape tuşu ile kapat
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') setSidebarOpen(false);
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -42,14 +59,51 @@ const AdminLayout = ({ children }) => {
 
   return (
     <div className="min-h-screen admin-bg">
+      {/* Mobile Header */}
+      <header className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-white border-b border-slate-200 z-30 flex items-center justify-between px-4">
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="p-2 -ml-2 rounded-lg hover:bg-slate-100 active:bg-slate-200 transition-colors"
+          data-testid="mobile-menu-btn"
+          aria-label="Menüyü aç"
+        >
+          <Menu size={24} className="text-slate-700" />
+        </button>
+        <h1 className="text-lg font-bold text-blue-600">Eğitim Yönetim</h1>
+        <div className="w-10" /> {/* Spacer for centering */}
+      </header>
+
+      {/* Mobile Overlay */}
+      {sidebarOpen && (
+        <div 
+          className="lg:hidden fixed inset-0 bg-black/50 z-40"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="fixed left-0 top-0 h-full w-64 bg-white border-r border-slate-200 shadow-sm z-10">
-        <div className="p-6">
-          <h1 className="text-2xl font-extrabold text-blue-600" data-testid="admin-logo">Eğitim Yönetim</h1>
-          <p className="text-sm text-slate-500 mt-1">Admin Paneli</p>
+      <aside className={`
+        fixed left-0 top-0 h-full w-72 lg:w-64 bg-white border-r border-slate-200 shadow-lg lg:shadow-sm z-50
+        transform transition-transform duration-300 ease-in-out
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      `}>
+        {/* Sidebar Header */}
+        <div className="p-4 lg:p-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl lg:text-2xl font-extrabold text-blue-600" data-testid="admin-logo">Eğitim Yönetim</h1>
+            <p className="text-xs lg:text-sm text-slate-500 mt-1">Admin Paneli</p>
+          </div>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="lg:hidden p-2 -mr-2 rounded-lg hover:bg-slate-100 active:bg-slate-200"
+            aria-label="Menüyü kapat"
+          >
+            <X size={20} className="text-slate-500" />
+          </button>
         </div>
         
-        <nav className="mt-6">
+        {/* Navigation */}
+        <nav className="mt-2 lg:mt-6 overflow-y-auto max-h-[calc(100vh-180px)]">
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
@@ -58,24 +112,25 @@ const AdminLayout = ({ children }) => {
                 key={item.path}
                 to={item.path}
                 data-testid={`admin-menu-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                className={`flex items-center gap-3 px-6 py-3 transition-colors ${
+                className={`flex items-center gap-3 px-4 lg:px-6 py-3.5 lg:py-3 transition-colors ${
                   isActive
                     ? 'bg-blue-50 text-blue-600 border-r-4 border-blue-600 font-semibold'
-                    : 'text-slate-600 hover:bg-slate-50'
+                    : 'text-slate-600 hover:bg-slate-50 active:bg-slate-100'
                 }`}
               >
                 <Icon size={20} />
-                <span>{item.label}</span>
+                <span className="text-sm lg:text-base">{item.label}</span>
               </Link>
             );
           })}
         </nav>
 
-        <div className="absolute bottom-0 left-0 right-0 p-6">
+        {/* Logout Button */}
+        <div className="absolute bottom-0 left-0 right-0 p-4 lg:p-6 bg-white border-t border-slate-100">
           <button
             onClick={handleLogout}
             data-testid="admin-logout-btn"
-            className="flex items-center gap-3 w-full px-4 py-3 text-red-600 hover:bg-red-50 rounded-md transition-colors"
+            className="flex items-center gap-3 w-full px-4 py-3 text-red-600 hover:bg-red-50 active:bg-red-100 rounded-lg transition-colors"
           >
             <LogOut size={20} />
             <span className="font-medium">Çıkış Yap</span>
@@ -84,8 +139,10 @@ const AdminLayout = ({ children }) => {
       </aside>
 
       {/* Main Content */}
-      <main className="ml-64 p-8">
-        {children}
+      <main className="lg:ml-64 pt-14 lg:pt-0 min-h-screen">
+        <div className="p-4 lg:p-8">
+          {children}
+        </div>
       </main>
     </div>
   );
