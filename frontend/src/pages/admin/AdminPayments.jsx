@@ -7,19 +7,31 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
-import { Plus, ArrowUpCircle, ArrowDownCircle, Filter, X } from 'lucide-react';
+import { Plus, ArrowUpCircle, ArrowDownCircle, Filter, X, Edit, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../../components/ui/alert-dialog';
 
 const AdminPayments = () => {
   const [payments, setPayments] = useState([]);
   const [students, setStudents] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [bankAccounts, setBankAccounts] = useState([]);
-  const [branches, setBranches] = useState([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogType, setDialogType] = useState('income');
+  const [editingPayment, setEditingPayment] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState('');
   const [selectedBankAccount, setSelectedBankAccount] = useState('all');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [paymentToDelete, setPaymentToDelete] = useState(null);
   const [newPayment, setNewPayment] = useState({
     amount: '',
     date: new Date().toISOString().split('T')[0],
@@ -40,16 +52,14 @@ const AdminPayments = () => {
 
   const fetchReferenceData = async () => {
     try {
-      const [studentsRes, teachersRes, banksRes, branchesRes] = await Promise.all([
+      const [studentsRes, teachersRes, banksRes] = await Promise.all([
         apiClient.get('/students'),
         apiClient.get('/teachers'),
-        apiClient.get('/bank-accounts'),
-        apiClient.get('/branches')
+        apiClient.get('/bank-accounts')
       ]);
       setStudents(studentsRes.data);
       setTeachers(teachersRes.data);
       setBankAccounts(banksRes.data);
-      setBranches(branchesRes.data);
     } catch (error) {
       toast.error('Referans veriler yüklenemedi');
     }
@@ -71,27 +81,92 @@ const AdminPayments = () => {
     }
   };
 
-  const handleAddPayment = async (e) => {
+  const handleSubmitPayment = async (e) => {
     e.preventDefault();
+    
+    // Banka hesabı zorunlu kontrolü
+    if (!newPayment.bank_account_id) {
+      toast.error('Banka hesabı seçimi zorunludur');
+      return;
+    }
+    
     try {
       const paymentData = {
         ...newPayment,
         amount: parseFloat(newPayment.amount),
         payment_type: dialogType === 'income' ? 'student_payment' : 'expense'
       };
-      await apiClient.post('/payments', paymentData);
-      toast.success('Ödeme eklendi');
-      setDialogOpen(false);
-      setNewPayment({ amount: '', date: new Date().toISOString().split('T')[0], student_id: '', teacher_id: '', bank_account_id: '', description: '', expense_category: '' });
+      
+      if (editingPayment) {
+        await apiClient.put(`/payments/${editingPayment.id}`, paymentData);
+        toast.success('Ödeme güncellendi');
+      } else {
+        await apiClient.post('/payments', paymentData);
+        toast.success('Ödeme eklendi');
+      }
+      
+      closeDialog();
       fetchPayments();
     } catch (error) {
-      toast.error('Ödeme eklenemedi');
+      toast.error(error.response?.data?.detail || (editingPayment ? 'Güncelleme başarısız' : 'Ödeme eklenemedi'));
     }
   };
 
-  const openDialog = (type) => {
+  const handleDeletePayment = async () => {
+    if (!paymentToDelete) return;
+    
+    try {
+      await apiClient.delete(`/payments/${paymentToDelete.id}`);
+      toast.success('Ödeme silindi');
+      setDeleteDialogOpen(false);
+      setPaymentToDelete(null);
+      fetchPayments();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Silme işlemi başarısız');
+    }
+  };
+
+  const openDialog = (type, payment = null) => {
     setDialogType(type);
+    setEditingPayment(payment);
+    
+    if (payment) {
+      setNewPayment({
+        amount: payment.amount.toString(),
+        date: payment.date,
+        student_id: payment.student_id || '',
+        teacher_id: payment.teacher_id || '',
+        bank_account_id: payment.bank_account_id || '',
+        description: payment.description || '',
+        expense_category: payment.expense_category || ''
+      });
+    } else {
+      setNewPayment({
+        amount: '',
+        date: new Date().toISOString().split('T')[0],
+        student_id: '',
+        teacher_id: '',
+        bank_account_id: '',
+        description: '',
+        expense_category: ''
+      });
+    }
+    
     setDialogOpen(true);
+  };
+
+  const closeDialog = () => {
+    setDialogOpen(false);
+    setEditingPayment(null);
+    setNewPayment({
+      amount: '',
+      date: new Date().toISOString().split('T')[0],
+      student_id: '',
+      teacher_id: '',
+      bank_account_id: '',
+      description: '',
+      expense_category: ''
+    });
   };
 
   const incomePayments = payments.filter(p => p.payment_type === 'student_payment');
@@ -99,6 +174,56 @@ const AdminPayments = () => {
 
   const totalIncome = incomePayments.reduce((sum, p) => sum + p.amount, 0);
   const totalExpense = expensePayments.reduce((sum, p) => sum + p.amount, 0);
+
+  const renderPaymentItem = (payment, bgClass) => {
+    const student = students.find(s => s.id === payment.student_id);
+    const teacher = teachers.find(t => t.id === payment.teacher_id);
+    const bankAccount = bankAccounts.find(b => b.id === payment.bank_account_id);
+    const isIncome = payment.payment_type === 'student_payment';
+    
+    return (
+      <div key={payment.id} className={`flex items-center justify-between p-3 lg:p-4 ${bgClass} rounded-lg`}>
+        <div className="min-w-0 flex-1 mr-3">
+          <p className="font-semibold text-slate-800 text-sm lg:text-base">{payment.date}</p>
+          <p className="text-xs lg:text-sm text-slate-600 truncate">
+            {payment.payment_type === 'student_payment' ? `Öğrenci: ${student?.name || 'Bilinmiyor'}` : 
+             payment.payment_type === 'teacher_payment' ? `Öğretmen: ${teacher?.name || 'Bilinmiyor'}` : 
+             payment.expense_category || 'Gider'}
+          </p>
+          {bankAccount && (
+            <p className="text-xs text-slate-500">{bankAccount.bank_name}</p>
+          )}
+          {payment.description && <p className="text-xs text-slate-500 truncate">{payment.description}</p>}
+        </div>
+        <div className="flex items-center gap-2">
+          <p className={`font-bold text-sm lg:text-base whitespace-nowrap ${isIncome ? 'text-green-600' : 'text-red-600'}`}>
+            {isIncome ? '+' : '-'}{payment.amount.toFixed(2)} ₺
+          </p>
+          <div className="flex gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => openDialog(isIncome ? 'income' : 'expense', payment)}
+              className="h-8 w-8 p-0 text-slate-500 hover:text-blue-600"
+            >
+              <Edit size={16} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setPaymentToDelete(payment);
+                setDeleteDialogOpen(true);
+              }}
+              className="h-8 w-8 p-0 text-slate-500 hover:text-red-600"
+            >
+              <Trash2 size={16} />
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <AdminLayout>
@@ -223,26 +348,7 @@ const AdminPayments = () => {
               {payments.length === 0 ? (
                 <p className="text-slate-600 text-center py-8">Henüz ödeme yok</p>
               ) : (
-                payments.map((payment) => {
-                  const student = students.find(s => s.id === payment.student_id);
-                  const teacher = teachers.find(t => t.id === payment.teacher_id);
-                  return (
-                    <div key={payment.id} className="flex items-center justify-between p-3 lg:p-4 bg-slate-50 rounded-lg">
-                      <div className="min-w-0 flex-1 mr-3">
-                        <p className="font-semibold text-slate-800 text-sm lg:text-base">{payment.date}</p>
-                        <p className="text-xs lg:text-sm text-slate-600 truncate">
-                          {payment.payment_type === 'student_payment' ? `Öğrenci: ${student?.name || 'Bilinmiyor'}` : 
-                           payment.payment_type === 'teacher_payment' ? `Öğretmen: ${teacher?.name || 'Bilinmiyor'}` : 
-                           payment.expense_category || 'Gider'}
-                        </p>
-                        {payment.description && <p className="text-xs text-slate-500 truncate">{payment.description}</p>}
-                      </div>
-                      <p className={`font-bold text-sm lg:text-base whitespace-nowrap ${payment.payment_type === 'student_payment' ? 'text-green-600' : 'text-red-600'}`}>
-                        {payment.payment_type === 'student_payment' ? '+' : '-'}{payment.amount.toFixed(2)} ₺
-                      </p>
-                    </div>
-                  );
-                })
+                payments.map((payment) => renderPaymentItem(payment, 'bg-slate-50'))
               )}
             </TabsContent>
 
@@ -250,18 +356,7 @@ const AdminPayments = () => {
               {incomePayments.length === 0 ? (
                 <p className="text-slate-600 text-center py-8">Henüz gelir kaydı yok</p>
               ) : (
-                incomePayments.map((payment) => {
-                  const student = students.find(s => s.id === payment.student_id);
-                  return (
-                    <div key={payment.id} className="flex items-center justify-between p-3 lg:p-4 bg-green-50 rounded-lg">
-                      <div className="min-w-0 flex-1 mr-3">
-                        <p className="font-semibold text-slate-800 text-sm lg:text-base">{payment.date}</p>
-                        <p className="text-xs lg:text-sm text-slate-600 truncate">Öğrenci: {student?.name || 'Bilinmiyor'}</p>
-                      </div>
-                      <p className="font-bold text-green-600 text-sm lg:text-base whitespace-nowrap">+{payment.amount.toFixed(2)} ₺</p>
-                    </div>
-                  );
-                })
+                incomePayments.map((payment) => renderPaymentItem(payment, 'bg-green-50'))
               )}
             </TabsContent>
 
@@ -269,32 +364,21 @@ const AdminPayments = () => {
               {expensePayments.length === 0 ? (
                 <p className="text-slate-600 text-center py-8">Henüz gider kaydı yok</p>
               ) : (
-                expensePayments.map((payment) => {
-                  const teacher = teachers.find(t => t.id === payment.teacher_id);
-                  return (
-                    <div key={payment.id} className="flex items-center justify-between p-3 lg:p-4 bg-red-50 rounded-lg">
-                      <div className="min-w-0 flex-1 mr-3">
-                        <p className="font-semibold text-slate-800 text-sm lg:text-base">{payment.date}</p>
-                        <p className="text-xs lg:text-sm text-slate-600 truncate">
-                          {payment.payment_type === 'teacher_payment' ? `Öğretmen: ${teacher?.name || 'Bilinmiyor'}` : payment.expense_category || 'Gider'}
-                        </p>
-                      </div>
-                      <p className="font-bold text-red-600 text-sm lg:text-base whitespace-nowrap">-{payment.amount.toFixed(2)} ₺</p>
-                    </div>
-                  );
-                })
+                expensePayments.map((payment) => renderPaymentItem(payment, 'bg-red-50'))
               )}
             </TabsContent>
           </Tabs>
         </div>
 
-        {/* Dialog - Mobile full width */}
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        {/* Add/Edit Payment Dialog */}
+        <Dialog open={dialogOpen} onOpenChange={(open) => !open && closeDialog()}>
           <DialogContent className="sm:max-w-md mx-4 sm:mx-auto">
             <DialogHeader>
-              <DialogTitle>{dialogType === 'income' ? 'Ödeme Girişi' : 'Para Çıkışı'}</DialogTitle>
+              <DialogTitle>
+                {editingPayment ? 'Ödeme Düzenle' : (dialogType === 'income' ? 'Ödeme Girişi' : 'Para Çıkışı')}
+              </DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleAddPayment} className="space-y-4">
+            <form onSubmit={handleSubmitPayment} className="space-y-4">
               {dialogType === 'income' && (
                 <div className="space-y-2">
                   <Label htmlFor="student">Öğrenci</Label>
@@ -338,7 +422,7 @@ const AdminPayments = () => {
                 </>
               )}
               <div className="space-y-2">
-                <Label htmlFor="amount">Tutar (₺)</Label>
+                <Label htmlFor="amount">Tutar (₺) *</Label>
                 <Input
                   id="amount"
                   type="number"
@@ -350,7 +434,7 @@ const AdminPayments = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="date">Tarih</Label>
+                <Label htmlFor="date">Tarih *</Label>
                 <Input
                   id="date"
                   type="date"
@@ -361,10 +445,13 @@ const AdminPayments = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="bank_account">Banka Hesabı</Label>
-                <Select value={newPayment.bank_account_id} onValueChange={(value) => setNewPayment({ ...newPayment, bank_account_id: value })}>
+                <Label htmlFor="bank_account">Banka Hesabı *</Label>
+                <Select 
+                  value={newPayment.bank_account_id} 
+                  onValueChange={(value) => setNewPayment({ ...newPayment, bank_account_id: value })}
+                >
                   <SelectTrigger className="h-12">
-                    <SelectValue placeholder="Banka hesabı seçin" />
+                    <SelectValue placeholder="Banka hesabı seçin (zorunlu)" />
                   </SelectTrigger>
                   <SelectContent>
                     {bankAccounts.map((account) => (
@@ -374,16 +461,40 @@ const AdminPayments = () => {
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-slate-500">Banka hesabı seçimi zorunludur</p>
               </div>
               <div className="grid grid-cols-2 gap-3 pt-2">
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="h-12">
+                <Button type="button" variant="outline" onClick={closeDialog} className="h-12">
                   İptal
                 </Button>
-                <Button type="submit" className="h-12">Kaydet</Button>
+                <Button type="submit" className="h-12">
+                  {editingPayment ? 'Güncelle' : 'Kaydet'}
+                </Button>
               </div>
             </form>
           </DialogContent>
         </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Ödemeyi Sil</AlertDialogTitle>
+              <AlertDialogDescription>
+                Bu ödeme kaydını silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>İptal</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeletePayment}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                Sil
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AdminLayout>
   );

@@ -4,12 +4,13 @@ import AdminLayout from '../../components/layouts/AdminLayout';
 import apiClient from '../../api/axios';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-import { Plus, Search, Book, Calendar, X, ChevronRight } from 'lucide-react';
+import { Plus, Search, ChevronRight, Users } from 'lucide-react';
 import { Badge } from '../../components/ui/badge';
 import { toast } from 'sonner';
 
 const AdminStudents = () => {
   const [students, setStudents] = useState([]);
+  const [studentStats, setStudentStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -18,6 +19,7 @@ const AdminStudents = () => {
 
   useEffect(() => {
     fetchStudents();
+    fetchStudentStats();
   }, [showInactive]);
 
   const fetchStudents = async () => {
@@ -32,6 +34,15 @@ const AdminStudents = () => {
       console.error('Error fetching students:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchStudentStats = async () => {
+    try {
+      const response = await apiClient.get('/students/stats/summary');
+      setStudentStats(response.data);
+    } catch (error) {
+      console.error('Error fetching student stats:', error);
     }
   };
 
@@ -74,6 +85,56 @@ const AdminStudents = () => {
             Öğrenci Ekle
           </Button>
         </div>
+
+        {/* Özet Bilgiler */}
+        {studentStats && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-6">
+            <div className="admin-card p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Users size={20} className="text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500">Toplam Öğrenci</p>
+                  <p className="text-xl font-bold text-slate-800">{studentStats.total}</p>
+                </div>
+              </div>
+            </div>
+            <div className="admin-card p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <Users size={20} className="text-green-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500">Aktif</p>
+                  <p className="text-xl font-bold text-green-600">{studentStats.total_active}</p>
+                </div>
+              </div>
+            </div>
+            {Object.entries(studentStats.by_teacher || {}).slice(0, 2).map(([teacherName, count]) => (
+              <div key={teacherName} className="admin-card p-4">
+                <div>
+                  <p className="text-xs text-slate-500 truncate">{teacherName}</p>
+                  <p className="text-xl font-bold text-slate-800">{count} <span className="text-sm font-normal text-slate-500">öğrenci</span></p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Öğretmen bazında detaylı istatistikler (genişletilmiş) */}
+        {studentStats && Object.keys(studentStats.by_teacher || {}).length > 2 && (
+          <div className="admin-card p-4 mb-6">
+            <h3 className="text-sm font-semibold text-slate-700 mb-3">Öğretmen Bazında Öğrenci Sayıları</h3>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(studentStats.by_teacher || {}).map(([teacherName, count]) => (
+                <Badge key={teacherName} variant="secondary" className="text-sm">
+                  {teacherName}: {count}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Search & Filter */}
         <div className="admin-card p-4 lg:p-6 mb-4 lg:mb-6">

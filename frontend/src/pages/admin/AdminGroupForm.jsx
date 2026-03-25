@@ -8,6 +8,7 @@ import { Label } from '../../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Checkbox } from '../../components/ui/checkbox';
 import { toast } from 'sonner';
+import { Search } from 'lucide-react';
 
 const AdminGroupForm = () => {
   const { id } = useParams();
@@ -25,6 +26,7 @@ const AdminGroupForm = () => {
   const [branches, setBranches] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     fetchReferenceData();
@@ -40,7 +42,8 @@ const AdminGroupForm = () => {
         apiClient.get('/branches'),
         apiClient.get('/teachers')
       ]);
-      setStudents(studentsRes.data);
+      // Sadece aktif öğrencileri listele
+      setStudents(studentsRes.data.filter(s => s.status === 'active'));
       setBranches(branchesRes.data);
       setTeachers(teachersRes.data.filter(t => t.status === 'active'));
     } catch (error) {
@@ -94,6 +97,11 @@ const AdminGroupForm = () => {
     }
   };
 
+  // İsme göre filtreleme
+  const filteredStudents = students.filter(student =>
+    student.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <AdminLayout>
       <div className="max-w-3xl">
@@ -112,7 +120,7 @@ const AdminGroupForm = () => {
                 id="name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Örn: 9. Sınıf Matematik A Grubu"
+                placeholder="Örn: 8. Sınıf Matematik A Grubu"
                 required
                 data-testid="group-name-input"
               />
@@ -135,14 +143,17 @@ const AdminGroupForm = () => {
 
               <div className="space-y-2">
                 <Label htmlFor="level">Sınıf *</Label>
-                <Input
-                  id="level"
-                  value={formData.level}
-                  onChange={(e) => setFormData({ ...formData, level: e.target.value })}
-                  placeholder="Örn: 9. Sınıf"
-                  required
-                  data-testid="level-input"
-                />
+                <Select value={formData.level} onValueChange={(value) => setFormData({ ...formData, level: value })}>
+                  <SelectTrigger data-testid="level-select">
+                    <SelectValue placeholder="Sınıf seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">5. Sınıf</SelectItem>
+                    <SelectItem value="6">6. Sınıf</SelectItem>
+                    <SelectItem value="7">7. Sınıf</SelectItem>
+                    <SelectItem value="8">8. Sınıf</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -162,22 +173,71 @@ const AdminGroupForm = () => {
           </div>
 
           <div className="admin-card p-8">
-            <h3 className="text-lg font-bold text-slate-800 mb-4">Öğrenciler ({formData.student_ids.length} seçildi)</h3>
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {students.map((student) => (
-                <div key={student.id} className="flex items-center space-x-3 p-3 hover:bg-slate-50 rounded">
-                  <Checkbox
-                    id={`student-${student.id}`}
-                    checked={formData.student_ids.includes(student.id)}
-                    onCheckedChange={() => toggleStudent(student.id)}
-                  />
-                  <Label htmlFor={`student-${student.id}`} className="flex-1 cursor-pointer font-normal">
-                    <span className="font-semibold">{student.name}</span>
-                    <span className="text-sm text-slate-600 ml-2">({student.level})</span>
-                  </Label>
-                </div>
-              ))}
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-slate-800">
+                Öğrenciler ({formData.student_ids.length} seçildi)
+              </h3>
             </div>
+            
+            {/* Arama */}
+            <div className="relative mb-4">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <Input
+                type="text"
+                placeholder="Öğrenci adına göre ara..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+                data-testid="student-search-input"
+              />
+            </div>
+            
+            {/* Seçilen öğrenci sayısı */}
+            {formData.student_ids.length > 0 && (
+              <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+                <p className="text-sm text-blue-700">
+                  <strong>{formData.student_ids.length}</strong> öğrenci seçildi
+                  {formData.student_ids.length > 4 && (
+                    <span className="text-orange-600 ml-2">
+                      (4+ öğrenci: Öğretmen geliri 4 kişi üzerinden hesaplanacak)
+                    </span>
+                  )}
+                </p>
+              </div>
+            )}
+            
+            {/* Öğrenci listesi */}
+            <div className="space-y-1 max-h-80 overflow-y-auto border rounded-lg">
+              {filteredStudents.length === 0 ? (
+                <div className="p-8 text-center text-slate-500">
+                  {searchTerm ? 'Arama sonucu bulunamadı' : 'Aktif öğrenci yok'}
+                </div>
+              ) : (
+                filteredStudents.map((student) => (
+                  <div 
+                    key={student.id} 
+                    className={`flex items-center space-x-3 p-3 hover:bg-slate-50 cursor-pointer border-b last:border-b-0 ${
+                      formData.student_ids.includes(student.id) ? 'bg-blue-50' : ''
+                    }`}
+                    onClick={() => toggleStudent(student.id)}
+                  >
+                    <Checkbox
+                      id={`student-${student.id}`}
+                      checked={formData.student_ids.includes(student.id)}
+                      onCheckedChange={() => toggleStudent(student.id)}
+                    />
+                    <Label htmlFor={`student-${student.id}`} className="flex-1 cursor-pointer font-normal">
+                      <span className="font-semibold">{student.name}</span>
+                      <span className="text-sm text-slate-600 ml-2">({student.level}. Sınıf)</span>
+                    </Label>
+                  </div>
+                ))
+              )}
+            </div>
+            
+            <p className="text-xs text-slate-500 mt-2">
+              Sadece aktif öğrenciler listelenir. Pasif öğrencileri görmek için öğrenci sayfasından aktifleştirin.
+            </p>
           </div>
 
           <div className="flex items-center gap-4">

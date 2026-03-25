@@ -29,6 +29,7 @@ const AdminStudentForm = () => {
   const [bankAccounts, setBankAccounts] = useState([]);
   const [branches, setBranches] = useState([]);
   const [teachers, setTeachers] = useState([]);
+  const [branchTeachers, setBranchTeachers] = useState([]); // Branşa göre filtrelenmiş öğretmenler
   const [lessonTypes, setLessonTypes] = useState([]);
   const [groups, setGroups] = useState([]);
   const [studentGroups, setStudentGroups] = useState([]);
@@ -225,6 +226,27 @@ const AdminStudentForm = () => {
     }
   };
 
+  // Branş seçildiğinde o branşa atanmış öğretmenleri getir
+  const fetchBranchTeachers = async (branchId) => {
+    if (!branchId) {
+      setBranchTeachers([]);
+      return;
+    }
+    try {
+      const response = await apiClient.get(`/branches/${branchId}/teachers`);
+      setBranchTeachers(response.data);
+    } catch (error) {
+      console.error('Error fetching branch teachers:', error);
+      setBranchTeachers([]);
+    }
+  };
+
+  // Branş değiştiğinde öğretmenleri güncelle
+  const handleBranchChange = (branchId) => {
+    setNewCourse({ ...newCourse, branch_id: branchId, teacher_id: '', group_id: '' });
+    fetchBranchTeachers(branchId);
+  };
+
   // Filter groups based on selected teacher and branch
   const filteredGroups = groups.filter(g => 
     g.teacher_id === newCourse.teacher_id && 
@@ -400,10 +422,10 @@ const AdminStudentForm = () => {
                       <Label>Branş *</Label>
                       <Select 
                         value={newCourse.branch_id} 
-                        onValueChange={(value) => setNewCourse({ ...newCourse, branch_id: value, group_id: '' })}
+                        onValueChange={handleBranchChange}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Branş seçin" />
+                          <SelectValue placeholder="Önce branş seçin" />
                         </SelectTrigger>
                         <SelectContent>
                           {branches.map((branch) => (
@@ -418,16 +440,28 @@ const AdminStudentForm = () => {
                       <Select 
                         value={newCourse.teacher_id} 
                         onValueChange={(value) => setNewCourse({ ...newCourse, teacher_id: value, group_id: '' })}
+                        disabled={!newCourse.branch_id}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Öğretmen seçin" />
+                          <SelectValue placeholder={newCourse.branch_id ? "Öğretmen seçin" : "Önce branş seçin"} />
                         </SelectTrigger>
                         <SelectContent>
-                          {teachers.map((teacher) => (
-                            <SelectItem key={teacher.id} value={teacher.id}>{teacher.name}</SelectItem>
-                          ))}
+                          {branchTeachers.length > 0 ? (
+                            branchTeachers.map((teacher) => (
+                              <SelectItem key={teacher.id} value={teacher.id}>{teacher.name}</SelectItem>
+                            ))
+                          ) : (
+                            <div className="p-2 text-sm text-slate-500 text-center">
+                              Bu branşa atanmış öğretmen yok
+                            </div>
+                          )}
                         </SelectContent>
                       </Select>
+                      {newCourse.branch_id && branchTeachers.length === 0 && (
+                        <p className="text-xs text-orange-600">
+                          Bu branşa atanmış aktif öğretmen bulunamadı. Önce Öğretmenler sayfasından bu branş için öğretmen tanımlayın.
+                        </p>
+                      )}
                     </div>
 
                     <div className="space-y-2">

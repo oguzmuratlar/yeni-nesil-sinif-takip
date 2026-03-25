@@ -8,7 +8,7 @@ import { Label } from '../../components/ui/label';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, Eye, EyeOff } from 'lucide-react';
 
 const AdminTeacherForm = () => {
   const { id } = useParams();
@@ -21,13 +21,16 @@ const AdminTeacherForm = () => {
     season_id: '',
     username: '',
     password: '',
+    user_type: 'teacher',
     branches: [],  // [{branch_id, birebir_price, group_prices: {1, 2, 3, 4}}]
   });
+  const [existingUser, setExistingUser] = useState(null);
   const [seasons, setSeasons] = useState([]);
   const [branches, setBranches] = useState([]);
   const [lessonTypes, setLessonTypes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [branchDialogOpen, setBranchDialogOpen] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [newBranch, setNewBranch] = useState({
     branch_id: '',
     birebir_price: '',
@@ -41,6 +44,7 @@ const AdminTeacherForm = () => {
     fetchReferenceData();
     if (isEdit) {
       fetchTeacher();
+      fetchUserInfo();
     }
   }, [id]);
 
@@ -64,35 +68,47 @@ const AdminTeacherForm = () => {
       const response = await apiClient.get(`/teachers/${id}`);
       const teacherData = response.data;
       
-      if (isEdit) {
-        // Load teacher prices
-        const pricesRes = await apiClient.get(`/teacher-prices?teacher_id=${id}`);
-        const prices = pricesRes.data;
-        
-        // Group by branch
-        const branchGroups = {};
-        prices.forEach(price => {
-          if (!branchGroups[price.branch_id]) {
-            branchGroups[price.branch_id] = { branch_id: price.branch_id };
-          }
-          if (price.group_size) {
-            branchGroups[price.branch_id][`group_${price.group_size}`] = price.price;
-          } else {
-            branchGroups[price.branch_id].birebir_price = price.price;
-          }
-        });
-        
-        setFormData({
-          ...teacherData,
-          username: '',
-          password: '',
-          branches: Object.values(branchGroups)
-        });
-      } else {
-        setFormData(response.data);
-      }
+      // Load teacher prices
+      const pricesRes = await apiClient.get(`/teacher-prices?teacher_id=${id}`);
+      const prices = pricesRes.data;
+      
+      // Group by branch
+      const branchGroups = {};
+      prices.forEach(price => {
+        if (!branchGroups[price.branch_id]) {
+          branchGroups[price.branch_id] = { branch_id: price.branch_id };
+        }
+        if (price.group_size) {
+          branchGroups[price.branch_id][`group_${price.group_size}`] = price.price;
+        } else {
+          branchGroups[price.branch_id].birebir_price = price.price;
+        }
+      });
+      
+      setFormData(prev => ({
+        ...prev,
+        ...teacherData,
+        branches: Object.values(branchGroups)
+      }));
     } catch (error) {
       toast.error('Öğretmen bilgileri yüklenemedi');
+    }
+  };
+
+  const fetchUserInfo = async () => {
+    try {
+      const response = await apiClient.get(`/users/by-teacher/${id}`);
+      if (response.data) {
+        setExistingUser(response.data);
+        setFormData(prev => ({
+          ...prev,
+          username: response.data.username || '',
+          user_type: response.data.user_type || 'teacher'
+        }));
+      }
+    } catch (error) {
+      // Kullanıcı olmayabilir
+      console.log('No user found for teacher');
     }
   };
 
@@ -108,6 +124,26 @@ const AdminTeacherForm = () => {
           phone: formData.phone,
           season_id: formData.season_id
         });
+        
+        // Update user info if provided
+        if (formData.username || formData.password || formData.user_type) {
+          const userUpdateData = {};
+          if (formData.username) userUpdateData.username = formData.username;
+          if (formData.password) userUpdateData.password = formData.password;
+          if (formData.user_type) userUpdateData.user_type = formData.user_type;
+          
+          if (existingUser) {
+            await apiClient.put(`/users/by-teacher/${id}`, userUpdateData);
+          } else if (formData.username && formData.password) {
+            // Create new user if doesn't exist
+            await apiClient.post('/auth/register', {
+              username: formData.username,
+              password: formData.password,
+              user_type: formData.user_type,
+              teacher_id: id
+            });
+          }
+        }
         
         // Update prices if provided
         if (formData.branches && formData.branches.length > 0) {
@@ -143,7 +179,7 @@ const AdminTeacherForm = () => {
           }
         }
         
-        toast.success('Öğretmen güncellendi. Yeni fiyatlar ileriye dönük uygulanacak.');
+        toast.success('Öğretmen güncellendi');
       } else {
         // Create new teacher
         const teacherResponse = await apiClient.post('/teachers', {
@@ -189,7 +225,7 @@ const AdminTeacherForm = () => {
         await apiClient.post('/auth/register', {
           username: formData.username,
           password: formData.password,
-          user_type: 'teacher',
+          user_type: formData.user_type,
           teacher_id: teacherId
         });
         
@@ -262,38 +298,75 @@ const AdminTeacherForm = () => {
                 data-testid="teacher-phone-input"
               />
             </div>
+          </div>
 
-            {!isEdit && (
-              <>
-                <div className="col-span-2 mt-4">
-                  <h3 className="text-lg font-bold text-slate-800 mb-2">Kullanıcı Bilgileri</h3>
-                  <p className="text-sm text-slate-600 mb-4">Öğretmen için giriş yapabilmesi için kullanıcı bilgileri</p>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="username">Kullanıcı Adı *</Label>
-                  <Input
-                    id="username"
-                    value={formData.username}
-                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                    required={!isEdit}
-                    data-testid="teacher-username-input"
-                  />
-                </div>
+          {/* Kullanıcı Bilgileri */}
+          <div className="admin-card p-8 space-y-6">
+            <div>
+              <h3 className="text-lg font-bold text-slate-800 mb-2">Kullanıcı Bilgileri</h3>
+              <p className="text-sm text-slate-600 mb-4">
+                {isEdit 
+                  ? (existingUser 
+                      ? 'Mevcut kullanıcı bilgilerini görüntüleyin ve güncelleyin' 
+                      : 'Bu öğretmen için henüz kullanıcı oluşturulmamış. Yeni kullanıcı oluşturmak için bilgileri doldurun.')
+                  : 'Öğretmenin giriş yapabilmesi için kullanıcı bilgilerini girin'}
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="username">Kullanıcı Adı {!isEdit && '*'}</Label>
+              <Input
+                id="username"
+                value={formData.username}
+                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                required={!isEdit}
+                data-testid="teacher-username-input"
+                placeholder={isEdit ? 'Değiştirmek için yeni kullanıcı adı girin' : 'Kullanıcı adı girin'}
+              />
+              {isEdit && existingUser && (
+                <p className="text-xs text-slate-500">Mevcut: {existingUser.username}</p>
+              )}
+            </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="password">Şifre *</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    required={!isEdit}
-                    data-testid="teacher-password-input"
-                  />
-                </div>
-              </>
-            )}
+            <div className="space-y-2">
+              <Label htmlFor="password">Şifre {!isEdit && '*'}</Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  required={!isEdit && !existingUser}
+                  data-testid="teacher-password-input"
+                  placeholder={isEdit ? 'Değiştirmek için yeni şifre girin' : 'Şifre girin'}
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              {isEdit && (
+                <p className="text-xs text-slate-500">Boş bırakırsanız şifre değişmez</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="user_type">Yetki Seviyesi</Label>
+              <Select value={formData.user_type} onValueChange={(value) => setFormData({ ...formData, user_type: value })}>
+                <SelectTrigger data-testid="user-type-select">
+                  <SelectValue placeholder="Yetki seviyesi seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="teacher">Öğretmen</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-slate-500">Admin yetkisi verilirse tüm sisteme erişim sağlar</p>
+            </div>
           </div>
 
           <div className="admin-card p-8">

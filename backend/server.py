@@ -446,7 +446,88 @@ async def register_user(user_data: UserCreate, current_user: User = Depends(get_
     await db.users.insert_one(doc)
     return user
 
+@api_router.get("/users/by-teacher/{teacher_id}")
+async def get_user_by_teacher(teacher_id: str, current_user: User = Depends(get_current_user)):
+    """Öğretmene bağlı kullanıcı bilgilerini getir"""
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can view user info")
+    
+    user = await db.users.find_one({"teacher_id": teacher_id}, {"_id": 0, "password_hash": 0})
+    if not user:
+        return None
+    
+    if isinstance(user.get('created_at'), str):
+        user['created_at'] = datetime.fromisoformat(user['created_at'])
+    
+    return user
+
+class UserUpdate(BaseModel):
+    username: Optional[str] = None
+    password: Optional[str] = None
+    user_type: Optional[str] = None
+
+@api_router.put("/users/by-teacher/{teacher_id}")
+async def update_user_by_teacher(teacher_id: str, user_data: UserUpdate, current_user: User = Depends(get_current_user)):
+    """Öğretmene bağlı kullanıcı bilgilerini güncelle"""
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can update user info")
+    
+    user = await db.users.find_one({"teacher_id": teacher_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="Bu öğretmene bağlı kullanıcı bulunamadı")
+    
+    update_data = {}
+    
+    if user_data.username:
+        # Kullanıcı adı değişiyorsa, başka biri kullanıyor mu kontrol et
+        if user_data.username != user.get("username"):
+            existing = await db.users.find_one({"username": user_data.username})
+            if existing:
+                raise HTTPException(status_code=400, detail="Bu kullanıcı adı zaten kullanılıyor")
+        update_data["username"] = user_data.username
+    
+    if user_data.password:
+        update_data["password_hash"] = get_password_hash(user_data.password)
+    
+    if user_data.user_type:
+        update_data["user_type"] = user_data.user_type
+    
+    if update_data:
+        await db.users.update_one({"teacher_id": teacher_id}, {"$set": update_data})
+    
+    return {"message": "Kullanıcı bilgileri güncellendi"}
+
 # ============= STUDENT ROUTES =============
+
+@api_router.get("/students/stats/summary")
+async def get_students_summary(current_user: User = Depends(get_current_user)):
+    """Öğrenci özet istatistiklerini getir"""
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can view student stats")
+    
+    # Toplam aktif öğrenci sayısı
+    total_active = await db.students.count_documents({"status": "active"})
+    total_inactive = await db.students.count_documents({"status": "inactive"})
+    
+    # Öğretmen bazında öğrenci sayısı
+    student_courses = await db.student_courses.find({"status": "active"}, {"_id": 0}).to_list(10000)
+    teachers = await db.teachers.find({"status": "active"}, {"_id": 0}).to_list(1000)
+    
+    # Her öğretmenin benzersiz öğrenci sayısı
+    teacher_student_counts = {}
+    for teacher in teachers:
+        teacher_students = set()
+        for course in student_courses:
+            if course["teacher_id"] == teacher["id"]:
+                teacher_students.add(course["student_id"])
+        teacher_student_counts[teacher["name"]] = len(teacher_students)
+    
+    return {
+        "total_active": total_active,
+        "total_inactive": total_inactive,
+        "total": total_active + total_inactive,
+        "by_teacher": teacher_student_counts
+    }
 
 @api_router.get("/students", response_model=List[Student])
 async def get_students(current_user: User = Depends(get_current_user)):
@@ -691,6 +772,70 @@ async def create_bank_account(account_data: BankAccountCreate, current_user: Use
     await db.bank_accounts.insert_one(account.model_dump())
     return account
 
+@api_router.get("/bank-accounts/{account_id}/balance")
+async def get_bank_account_balance(account_id: str, current_user: User = Depends(get_current_user)):
+    """Banka hesabının bakiyesini hesapla"""
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can view account balance")
+    
+    # Gelen ödemeler (student_payment)
+    income_payments = await db.payments.find({
+        "bank_account_id": account_id,
+        "payment_type": "student_payment"
+    }, {"_id": 0, "amount": 1}).to_list(10000)
+    total_income = sum([p["amount"] for p in income_payments])
+    
+    # Giden ödemeler (expense, teacher_payment)
+    expense_payments = await db.payments.find({
+        "bank_account_id": account_id,
+        "payment_type": {"$in": ["expense", "teacher_payment"]}
+    }, {"_id": 0, "amount": 1}).to_list(10000)
+    total_expense = sum([p["amount"] for p in expense_payments])
+    
+    balance = total_income - total_expense
+    
+    return {
+        "account_id": account_id,
+        "total_income": total_income,
+        "total_expense": total_expense,
+        "balance": balance
+    }
+
+@api_router.delete("/bank-accounts/{account_id}")
+async def delete_bank_account(account_id: str, current_user: User = Depends(get_current_user)):
+    """Banka hesabını sil. Bakiye 0 olmalı."""
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can delete bank accounts")
+    
+    # Hesabın var olup olmadığını kontrol et
+    account = await db.bank_accounts.find_one({"id": account_id})
+    if not account:
+        raise HTTPException(status_code=404, detail="Banka hesabı bulunamadı")
+    
+    # Bu hesaba bağlı tüm ödemeleri hesapla
+    income_payments = await db.payments.find({
+        "bank_account_id": account_id,
+        "payment_type": "student_payment"
+    }, {"_id": 0, "amount": 1}).to_list(10000)
+    total_income = sum([p["amount"] for p in income_payments])
+    
+    expense_payments = await db.payments.find({
+        "bank_account_id": account_id,
+        "payment_type": {"$in": ["expense", "teacher_payment"]}
+    }, {"_id": 0, "amount": 1}).to_list(10000)
+    total_expense = sum([p["amount"] for p in expense_payments])
+    
+    balance = total_income - total_expense
+    
+    if balance != 0:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Bu hesabın bakiyesi sıfır değil ({balance:.2f} ₺). Hesabı silmeden önce bakiyeyi sıfırlayın."
+        )
+    
+    await db.bank_accounts.delete_one({"id": account_id})
+    return {"message": "Banka hesabı başarıyla silindi"}
+
 # ============= STUDENT COURSE ROUTES =============
 
 @api_router.get("/student-courses", response_model=List[StudentCourse])
@@ -917,11 +1062,50 @@ async def create_payment(payment_data: PaymentCreate, current_user: User = Depen
     if current_user.user_type != "admin":
         raise HTTPException(status_code=403, detail="Only admins can create payments")
     
+    # Banka hesabı zorunlu kontrolü
+    if not payment_data.bank_account_id:
+        raise HTTPException(status_code=400, detail="Banka hesabı seçimi zorunludur")
+    
     payment = Payment(**payment_data.model_dump())
     doc = payment.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
     await db.payments.insert_one(doc)
     return payment
+
+@api_router.put("/payments/{payment_id}", response_model=Payment)
+async def update_payment(payment_id: str, payment_data: PaymentCreate, current_user: User = Depends(get_current_user)):
+    """Ödeme güncelle"""
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can update payments")
+    
+    existing = await db.payments.find_one({"id": payment_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Ödeme bulunamadı")
+    
+    # Banka hesabı zorunlu kontrolü
+    if not payment_data.bank_account_id:
+        raise HTTPException(status_code=400, detail="Banka hesabı seçimi zorunludur")
+    
+    update_data = payment_data.model_dump()
+    await db.payments.update_one({"id": payment_id}, {"$set": update_data})
+    
+    updated = await db.payments.find_one({"id": payment_id}, {"_id": 0})
+    if isinstance(updated.get('created_at'), str):
+        updated['created_at'] = datetime.fromisoformat(updated['created_at'])
+    return Payment(**updated)
+
+@api_router.delete("/payments/{payment_id}")
+async def delete_payment(payment_id: str, current_user: User = Depends(get_current_user)):
+    """Ödeme sil"""
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can delete payments")
+    
+    existing = await db.payments.find_one({"id": payment_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Ödeme bulunamadı")
+    
+    await db.payments.delete_one({"id": payment_id})
+    return {"message": "Ödeme başarıyla silindi"}
 
 # ============= TEACHER PRICE ROUTES =============
 
@@ -1211,11 +1395,14 @@ async def create_group_lesson(
             group_size = len(group["student_ids"])
             teacher_rate = None
             
+            # 4+ kişilik gruplarda öğretmen 4 kişi üzerinden kazanır
+            effective_group_size = min(group_size, 4)
+            
             # Önce grup boyutuna göre fiyat ara
             group_price = await db.teacher_prices.find_one({
                 "teacher_id": group.get("teacher_id"),
                 "branch_id": branch_id,
-                "group_size": group_size
+                "group_size": effective_group_size
             }, {"_id": 0})
             
             if group_price:
@@ -1530,6 +1717,62 @@ async def update_monthly_program_note(
         })
     
     return {"message": "Note updated successfully"}
+
+# ============= YEAR END (SENE SONU) ROUTE =============
+
+@api_router.post("/year-end")
+async def year_end(current_user: User = Depends(get_current_user)):
+    """
+    Sene sonu işlemi:
+    - Tüm aktif öğrencilerin sınıfını 1 arttır
+    - 8. sınıf olan öğrencileri pasife al
+    """
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can perform year-end operation")
+    
+    # Tüm aktif öğrencileri getir
+    students = await db.students.find({"status": "active"}, {"_id": 0}).to_list(10000)
+    
+    upgraded_count = 0
+    deactivated_count = 0
+    
+    for student in students:
+        level = student.get("level", "")
+        
+        # Sınıf seviyesini normalize et ("5. Sınıf" -> 5, "6" -> 6, vb.)
+        level_num = None
+        if isinstance(level, str):
+            import re
+            match = re.match(r'^(\d+)', level)
+            if match:
+                level_num = int(match.group(1))
+        elif isinstance(level, int):
+            level_num = level
+        
+        if level_num is None:
+            continue
+        
+        if level_num >= 8:
+            # 8. sınıf veya üstü -> pasife al
+            await db.students.update_one(
+                {"id": student["id"]},
+                {"$set": {"status": "inactive"}}
+            )
+            deactivated_count += 1
+        else:
+            # Sınıfı 1 arttır
+            new_level = str(level_num + 1)
+            await db.students.update_one(
+                {"id": student["id"]},
+                {"$set": {"level": new_level}}
+            )
+            upgraded_count += 1
+    
+    return {
+        "message": "Sene sonu işlemi tamamlandı",
+        "upgraded_count": upgraded_count,
+        "deactivated_count": deactivated_count
+    }
 
 # ============= INIT DATA ROUTE =============
 
