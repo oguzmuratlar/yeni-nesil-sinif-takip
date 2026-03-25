@@ -2,23 +2,45 @@ import React, { useState, useEffect } from 'react';
 import TeacherLayout from '../../components/layouts/TeacherLayout';
 import apiClient from '../../api/axios';
 import { useAuth } from '../../contexts/AuthContext';
-import { Wallet, BookOpen, Tent, Youtube } from 'lucide-react';
+import { Wallet, BookOpen, Tent, Youtube, Filter } from 'lucide-react';
 import { toast } from 'sonner';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 
 const TeacherBalance = () => {
   const { user } = useAuth();
   const [balanceData, setBalanceData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [selectedMonth, setSelectedMonth] = useState('all');
+
+  const months = [
+    { value: 'all', label: 'Tüm Zamanlar' },
+    { value: '2024-12', label: 'Aralık 2024' },
+    { value: '2025-01', label: 'Ocak 2025' },
+    { value: '2025-02', label: 'Şubat 2025' },
+    { value: '2025-03', label: 'Mart 2025' },
+    { value: '2025-04', label: 'Nisan 2025' },
+    { value: '2025-05', label: 'Mayıs 2025' },
+    { value: '2025-06', label: 'Haziran 2025' },
+    { value: '2026-01', label: 'Ocak 2026' },
+    { value: '2026-02', label: 'Şubat 2026' },
+    { value: '2026-03', label: 'Mart 2026' },
+    { value: '2026-04', label: 'Nisan 2026' },
+  ];
 
   useEffect(() => {
     if (user?.teacher_id) {
       fetchBalance();
     }
-  }, [user]);
+  }, [user, selectedMonth]);
 
   const fetchBalance = async () => {
+    setLoading(true);
     try {
-      const response = await apiClient.get(`/teacher-balance/${user.teacher_id}`);
+      let url = `/teacher-balance/${user.teacher_id}`;
+      if (selectedMonth !== 'all') {
+        url += `?month=${selectedMonth}`;
+      }
+      const response = await apiClient.get(url);
       setBalanceData(response.data);
     } catch (error) {
       toast.error('Bakiye bilgileri yüklenemedi');
@@ -54,6 +76,29 @@ const TeacherBalance = () => {
           <p className="text-lg text-stone-600">
             Kazancınızı ve ödeme geçmişinizi görüntüleyin
           </p>
+        </div>
+
+        {/* Ay Filtresi */}
+        <div className="teacher-card p-4 mb-8">
+          <div className="flex items-center gap-4">
+            <Filter size={18} className="text-stone-500" />
+            <span className="text-sm font-medium text-stone-700">Dönem:</span>
+            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+              <SelectTrigger className="w-48" data-testid="month-filter">
+                <SelectValue placeholder="Dönem seçin" />
+              </SelectTrigger>
+              <SelectContent>
+                {months.map(m => (
+                  <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedMonth !== 'all' && (
+              <span className="text-sm text-teal-600 font-medium">
+                {months.find(m => m.value === selectedMonth)?.label} verilerini görüntülüyorsunuz
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Ana Özet Kartları */}

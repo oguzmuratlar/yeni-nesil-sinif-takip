@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 
 const AdminBranches = () => {
   const [branches, setBranches] = useState([]);
-  const [teachers, setTeachers] = useState([]);
+  const [branchTeachers, setBranchTeachers] = useState({});  // branch_id -> teachers array
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newBranchName, setNewBranchName] = useState('');
@@ -24,12 +24,20 @@ const AdminBranches = () => {
 
   const fetchData = async () => {
     try {
-      const [branchesRes, teachersRes] = await Promise.all([
-        apiClient.get('/branches'),
-        apiClient.get('/teachers')
-      ]);
+      const branchesRes = await apiClient.get('/branches');
       setBranches(branchesRes.data);
-      setTeachers(teachersRes.data);
+      
+      // Her branş için öğretmenleri getir
+      const teachersByBranch = {};
+      for (const branch of branchesRes.data) {
+        try {
+          const teachersRes = await apiClient.get(`/branches/${branch.id}/teachers`);
+          teachersByBranch[branch.id] = teachersRes.data;
+        } catch {
+          teachersByBranch[branch.id] = [];
+        }
+      }
+      setBranchTeachers(teachersByBranch);
     } catch (error) {
       toast.error('Veriler yüklenemedi');
     } finally {
@@ -66,9 +74,9 @@ const AdminBranches = () => {
     }
   };
 
+  // Branşa atanmış öğretmenleri getir
   const getBranchTeachers = (branchId) => {
-    // Get teachers who have prices for this branch
-    return teachers.filter(t => t.status === 'active');
+    return branchTeachers[branchId] || [];
   };
 
   return (

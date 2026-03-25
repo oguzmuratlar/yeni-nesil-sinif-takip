@@ -75,6 +75,7 @@ class Student(BaseModel):
     notes: Optional[str] = None
     status: str = "active"
     bank_account_id: Optional[str] = None
+    payment_account_name: Optional[str] = None  # Hesap adı (aylık program için)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class StudentCreate(BaseModel):
@@ -86,6 +87,7 @@ class StudentCreate(BaseModel):
     notes: Optional[str] = None
     bank_account_id: Optional[str] = None
     status: Optional[str] = None  # Pasifleştirme için
+    payment_account_name: Optional[str] = None  # Hesap adı (aylık program için)
 
 class Teacher(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -592,6 +594,30 @@ async def get_branches():
     branches = await db.branches.find({}, {"_id": 0}).to_list(1000)
     return branches
 
+@api_router.get("/branches/{branch_id}/teachers")
+async def get_branch_teachers(branch_id: str, current_user: User = Depends(get_current_user)):
+    """Branşa atanmış aktif öğretmenleri getir (teacher_prices tablosundan)"""
+    # TeacherBranch veya TeacherPrice üzerinden branşa tanımlı öğretmenleri bul
+    teacher_prices = await db.teacher_prices.find(
+        {"branch_id": branch_id},
+        {"_id": 0, "teacher_id": 1}
+    ).to_list(1000)
+    
+    # Benzersiz öğretmen ID'leri
+    teacher_ids = list(set([tp["teacher_id"] for tp in teacher_prices]))
+    
+    # Sadece aktif öğretmenleri getir
+    teachers = await db.teachers.find(
+        {"id": {"$in": teacher_ids}, "status": "active"},
+        {"_id": 0}
+    ).to_list(1000)
+    
+    for teacher in teachers:
+        if isinstance(teacher.get('created_at'), str):
+            teacher['created_at'] = datetime.fromisoformat(teacher['created_at'])
+    
+    return teachers
+
 @api_router.post("/branches", response_model=Branch)
 async def create_branch(name: str, current_user: User = Depends(get_current_user)):
     if current_user.user_type != "admin":
@@ -920,7 +946,11 @@ async def create_teacher_price(price_data: TeacherPriceCreate, current_user: Use
 # ============= TEACHER BALANCE ROUTE =============
 
 @api_router.get("/teacher-balance/{teacher_id}")
-async def get_teacher_balance(teacher_id: str, current_user: User = Depends(get_current_user)):
+async def get_teacher_balance(
+    teacher_id: str, 
+    month: Optional[str] = None,  # Format: "2025-01" - Ay bazlı filtreleme
+    current_user: User = Depends(get_current_user)
+):
     # Teachers can only see their own balance
     if current_user.user_type == "teacher" and current_user.teacher_id != teacher_id:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -929,10 +959,12 @@ async def get_teacher_balance(teacher_id: str, current_user: User = Depends(get_
     courses = await db.student_courses.find({"teacher_id": teacher_id}, {"_id": 0}).to_list(1000)
     course_ids = [c["id"] for c in courses]
     
-    lessons = await db.lessons.find(
-        {"student_course_id": {"$in": course_ids}},
-        {"_id": 0}
-    ).to_list(10000)
+    # Ders sorgusu - ay filtresi varsa uygula
+    lesson_query = {"student_course_id": {"$in": course_ids}}
+    if month:
+        lesson_query["date"] = {"$regex": f"^{month}"}
+    
+    lessons = await db.lessons.find(lesson_query, {"_id": 0}).to_list(10000)
     
     # Calculate earnings based on lesson rates (stored at creation time)
     total_earnings = 0
@@ -966,15 +998,15 @@ async def get_teacher_balance(teacher_id: str, current_user: User = Depends(get_
                     else:
                         total_earnings += teacher_price["price"] * lesson["number_of_lessons"]
     
-    # Get payments made to teacher
-    payments = await db.payments.find(
-        {"teacher_id": teacher_id, "payment_type": "teacher_payment"},
-        {"_id": 0}
-    ).to_list(1000)
+    # Ödeme sorgusu - ay filtresi varsa uygula
+    payment_query = {"teacher_id": teacher_id, "payment_type": "teacher_payment"}
+    if month:
+        payment_query["date"] = {"$regex": f"^{month}"}
     
+    payments = await db.payments.find(payment_query, {"_id": 0}).to_list(1000)
     total_paid = sum([p["amount"] for p in payments])
     
-    # Kamp kazançlarını hesapla (kesin_kayit = ödeme yapılmış kabul edilir)
+    # Kamp kazançlarını hesapla - ay filtresi kamplar için uygulanamaz (kamplar belirli bir ay'a bağlı değil)
     camps = await db.camps.find({"teacher_id": teacher_id}, {"_id": 0}).to_list(1000)
     total_camp_earnings = 0
     camp_earnings_details = []
@@ -996,11 +1028,15 @@ async def get_teacher_balance(teacher_id: str, current_user: User = Depends(get_
                 "earning": camp_earning
             })
     
-    # YouTube kazançlarını hesapla (sadece aktif kayıtlar)
-    youtube_records = await db.youtube_contents.find({
+    # YouTube kazançlarını hesapla - ay filtresi uygula
+    youtube_query = {
         "teacher_id": teacher_id,
         "status": YouTubeContentStatus.ACTIVE
-    }, {"_id": 0}).to_list(1000)
+    }
+    if month:
+        youtube_query["date"] = {"$regex": f"^{month}"}
+    
+    youtube_records = await db.youtube_contents.find(youtube_query, {"_id": 0}).to_list(1000)
     total_youtube_earnings = sum([r["amount"] for r in youtube_records])
     
     youtube_earnings_details = [{
@@ -1010,19 +1046,27 @@ async def get_teacher_balance(teacher_id: str, current_user: User = Depends(get_
     } for r in youtube_records]
     
     # Toplam kazanç = Ders kazancı + Kamp kazancı + YouTube kazancı
-    grand_total_earnings = total_earnings + total_camp_earnings + total_youtube_earnings
+    # Not: Ay filtresi varsa kamp kazancı hariç tutulabilir veya dahil edilebilir
+    # Şu an tüm kamplar dahil ediliyor
+    if month:
+        # Ay bazlı görünümde kamp kazancı dahil edilmez (kamplar aya bağlı değil)
+        grand_total_earnings = total_earnings + total_youtube_earnings
+    else:
+        grand_total_earnings = total_earnings + total_camp_earnings + total_youtube_earnings
+    
     balance = grand_total_earnings - total_paid
     
     return {
         "teacher_id": teacher_id,
+        "month": month,  # Hangi ay için hesaplandığını göster
         "lesson_earnings": total_earnings,
-        "camp_earnings": total_camp_earnings,
+        "camp_earnings": total_camp_earnings if not month else 0,
         "youtube_earnings": total_youtube_earnings,
         "total_earnings": grand_total_earnings,
         "total_paid": total_paid,
         "balance": balance,
         "payments": payments,
-        "camp_earnings_details": camp_earnings_details,
+        "camp_earnings_details": camp_earnings_details if not month else [],
         "youtube_earnings_details": youtube_earnings_details
     }
 
@@ -1269,6 +1313,227 @@ async def get_all_planned_lessons(month: Optional[str] = None, current_user: Use
             })
     
     return enriched
+
+# ============= MONTHLY PROGRAM DETAILED ENDPOINT =============
+
+class MonthlyProgramNote(BaseModel):
+    student_id: str
+    month: str
+    note: Optional[str] = None
+    payment_status: Optional[str] = None
+    payment_date: Optional[str] = None
+
+@api_router.get("/monthly-program-detailed")
+async def get_monthly_program_detailed(month: str, current_user: User = Depends(get_current_user)):
+    """
+    Aylık Program için tamamen aggregated veri döner.
+    Backend hesaplama yapar, frontend sadece render eder.
+    """
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can access this endpoint")
+    
+    # Tüm branşları getir
+    branches = await db.branches.find({}, {"_id": 0}).to_list(100)
+    branch_map = {b["id"]: b["name"] for b in branches}
+    
+    # Tüm aktif öğretmenleri getir
+    teachers = await db.teachers.find({"status": "active"}, {"_id": 0}).to_list(100)
+    teacher_map = {t["id"]: t["name"] for t in teachers}
+    
+    # Öğretmen fiyatlarını getir
+    teacher_prices = await db.teacher_prices.find({}, {"_id": 0}).to_list(1000)
+    
+    # Ders tipleri - ileride kullanılabilir, şimdilik kaldırıldı
+    # lesson_types = await db.lesson_types.find({}, {"_id": 0}).to_list(10)
+    
+    # Bu ay için planlı dersleri getir
+    planned_lessons = await db.planned_lessons.find({"month": month}, {"_id": 0}).to_list(10000)
+    
+    # Tüm aktif öğrencileri getir
+    students = await db.students.find({"status": "active"}, {"_id": 0}).to_list(1000)
+    
+    # Öğrenci kurslarını getir
+    student_courses = await db.student_courses.find({"status": "active"}, {"_id": 0}).to_list(10000)
+    
+    # Monthly program notlarını getir
+    program_notes = await db.monthly_program_notes.find({"month": month}, {"_id": 0}).to_list(1000)
+    notes_map = {n["student_id"]: n for n in program_notes}
+    
+    # Banka hesaplarını getir
+    bank_accounts = await db.bank_accounts.find({}, {"_id": 0}).to_list(100)
+    bank_map = {b["id"]: f"{b['bank_name']} - {b['holder_name']}" for b in bank_accounts}
+    
+    # Sonuç listesi
+    result = []
+    teacher_totals = {t["id"]: 0 for t in teachers}  # Öğretmen kazanç toplamları
+    
+    for student in students:
+        # Öğrencinin kurslarını bul
+        student_course_list = [sc for sc in student_courses if sc["student_id"] == student["id"]]
+        
+        if not student_course_list:
+            continue  # Kursu olmayan öğrenciyi atla
+        
+        # Öğrencinin aldığı branşlar
+        student_branches = list(set([sc["branch_id"] for sc in student_course_list]))
+        branch_names = [branch_map.get(bid, "") for bid in student_branches if bid in branch_map]
+        
+        # Notlar
+        note_data = notes_map.get(student["id"], {})
+        
+        # Hesap adı
+        account_name = student.get("payment_account_name", "")
+        if not account_name and student.get("bank_account_id"):
+            account_name = bank_map.get(student["bank_account_id"], "")
+        
+        # Her branş için ders bilgisi
+        branch_details = {}
+        total_student_payment = 0
+        
+        for branch_id in student_branches:
+            branch_name = branch_map.get(branch_id, "")
+            
+            # Bu öğrenci + branş için planlı dersleri bul
+            course = next((sc for sc in student_course_list if sc["branch_id"] == branch_id), None)
+            if not course:
+                continue
+            
+            # Planlı dersleri bul
+            branch_planned = [pl for pl in planned_lessons if pl["student_course_id"] == course["id"]]
+            
+            if not branch_planned:
+                branch_details[branch_name] = {
+                    "dates": "",
+                    "unit_price": course.get("price", 0),
+                    "lesson_count": 0,
+                    "total": 0
+                }
+                continue
+            
+            # Tarihler ve ders sayısı
+            all_dates = []
+            total_lessons = 0
+            for pl in branch_planned:
+                if pl.get("dates"):
+                    all_dates.extend([d.strip() for d in pl["dates"].split(",")])
+                total_lessons += pl.get("number_of_lessons", 0)
+            
+            unit_price = course.get("price", 0)
+            total = total_lessons * unit_price
+            total_student_payment += total
+            
+            branch_details[branch_name] = {
+                "dates": ", ".join(all_dates),
+                "unit_price": unit_price,
+                "lesson_count": total_lessons,
+                "total": total
+            }
+        
+        # Her öğretmen için kazanç hesapla
+        teacher_earnings = {}
+        for course in student_course_list:
+            teacher_id = course.get("teacher_id")
+            if not teacher_id or teacher_id not in teacher_map:
+                continue
+            
+            teacher_name = teacher_map[teacher_id]
+            
+            # Bu kurs için planlı dersleri bul
+            course_planned = [pl for pl in planned_lessons if pl["student_course_id"] == course["id"]]
+            
+            if not course_planned:
+                continue
+            
+            total_lessons = sum([pl.get("number_of_lessons", 0) for pl in course_planned])
+            
+            # Öğretmen ücretini bul
+            teacher_rate = 0
+            for tp in teacher_prices:
+                if tp["teacher_id"] == teacher_id and tp["branch_id"] == course["branch_id"]:
+                    teacher_rate = tp.get("price", 0)
+                    break
+            
+            earning = total_lessons * teacher_rate
+            
+            if teacher_name not in teacher_earnings:
+                teacher_earnings[teacher_name] = 0
+            teacher_earnings[teacher_name] += earning
+            
+            # Toplam öğretmen kazancına ekle
+            if teacher_id in teacher_totals:
+                teacher_totals[teacher_id] += earning
+        
+        result.append({
+            "student_id": student["id"],
+            "student_name": student["name"],
+            "parent_name": student.get("parent_name", ""),
+            "phone": student.get("phone", ""),
+            "level": student.get("level", ""),
+            "account_name": account_name,
+            "courses": ", ".join(branch_names),
+            "note": note_data.get("note", ""),
+            "payment_status": note_data.get("payment_status", ""),
+            "payment_date": note_data.get("payment_date", ""),
+            "total_payment": total_student_payment,
+            "branch_details": branch_details,
+            "teacher_earnings": teacher_earnings
+        })
+    
+    # Öğretmen toplamları
+    teacher_totals_named = {
+        teacher_map[tid]: total 
+        for tid, total in teacher_totals.items() 
+        if tid in teacher_map and total > 0
+    }
+    
+    return {
+        "month": month,
+        "students": result,
+        "branches": [b["name"] for b in branches],
+        "teachers": [{"id": t["id"], "name": t["name"]} for t in teachers],
+        "teacher_totals": teacher_totals_named
+    }
+
+@api_router.put("/monthly-program-notes/{student_id}")
+async def update_monthly_program_note(
+    student_id: str, 
+    month: str,
+    note: Optional[str] = None,
+    payment_status: Optional[str] = None,
+    payment_date: Optional[str] = None,
+    current_user: User = Depends(get_current_user)
+):
+    """Aylık program notunu güncelle veya oluştur"""
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can update notes")
+    
+    existing = await db.monthly_program_notes.find_one(
+        {"student_id": student_id, "month": month}
+    )
+    
+    update_data = {}
+    if note is not None:
+        update_data["note"] = note
+    if payment_status is not None:
+        update_data["payment_status"] = payment_status
+    if payment_date is not None:
+        update_data["payment_date"] = payment_date
+    
+    if existing:
+        await db.monthly_program_notes.update_one(
+            {"student_id": student_id, "month": month},
+            {"$set": update_data}
+        )
+    else:
+        await db.monthly_program_notes.insert_one({
+            "id": str(uuid.uuid4()),
+            "student_id": student_id,
+            "month": month,
+            **update_data,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+    
+    return {"message": "Note updated successfully"}
 
 # ============= INIT DATA ROUTE =============
 

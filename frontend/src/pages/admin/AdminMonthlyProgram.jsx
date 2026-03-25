@@ -1,18 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import AdminLayout from '../../components/layouts/AdminLayout';
 import apiClient from '../../api/axios';
-import { Calendar, Filter, Users } from 'lucide-react';
+import { Calendar, Filter, Save, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { Input } from '../../components/ui/input';
+import { Button } from '../../components/ui/button';
+import { debounce } from 'lodash';
 
 const AdminMonthlyProgram = () => {
-  const [plannedLessons, setPlannedLessons] = useState([]);
-  const [teachers, setTeachers] = useState([]);
-  const [branches, setBranches] = useState([]);
-  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().substring(0, 7));
-  const [selectedTeacher, setSelectedTeacher] = useState('all');
-  const [selectedBranch, setSelectedBranch] = useState('all');
+  const [programData, setProgramData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().substring(0, 7));
+  
+  // Filtreler
+  const [filterStudent, setFilterStudent] = useState('');
+  const [filterTeacher, setFilterTeacher] = useState('all');
+  const [filterBranch, setFilterBranch] = useState('all');
+  const [filterPaymentStatus, setFilterPaymentStatus] = useState('all');
 
   const months = [
     { value: '2024-12', label: 'Aralık 2024' },
@@ -35,43 +40,76 @@ const AdminMonthlyProgram = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [plannedRes, teachersRes, branchesRes] = await Promise.all([
-        apiClient.get(`/all-planned-lessons?month=${selectedMonth}`),
-        apiClient.get('/teachers'),
-        apiClient.get('/branches')
-      ]);
-      
-      setPlannedLessons(plannedRes.data);
-      setTeachers(teachersRes.data);
-      setBranches(branchesRes.data);
+      const response = await apiClient.get(`/monthly-program-detailed?month=${selectedMonth}`);
+      setProgramData(response.data);
     } catch (error) {
       toast.error('Veriler yüklenemedi');
+      console.error(error);
     } finally {
       setLoading(false);
     }
   };
 
-  // Filter planned lessons
-  const filteredLessons = plannedLessons.filter(pl => {
-    if (selectedTeacher !== 'all' && pl.teacher_id !== selectedTeacher) return false;
-    if (selectedBranch !== 'all' && pl.branch_id !== selectedBranch) return false;
-    return true;
-  });
+  // Debounced not kaydetme
+  const saveNote = useCallback(
+    debounce(async (studentId, field, value) => {
+      try {
+        const params = new URLSearchParams();
+        params.append('month', selectedMonth);
+        params.append(field, value);
+        
+        await apiClient.put(`/monthly-program-notes/${studentId}?${params.toString()}`);
+        toast.success('Kaydedildi', { duration: 1000 });
+      } catch (error) {
+        toast.error('Kaydetme başarısız');
+      }
+    }, 500),
+    [selectedMonth]
+  );
 
-  // Group by teacher for better visualization
-  const groupedByTeacher = filteredLessons.reduce((acc, pl) => {
-    const teacherName = pl.teacher_name || 'Bilinmiyor';
-    if (!acc[teacherName]) {
-      acc[teacherName] = [];
+  const handleNoteChange = (studentId, field, value) => {
+    // Lokal state'i güncelle
+    setProgramData(prev => ({
+      ...prev,
+      students: prev.students.map(s => 
+        s.student_id === studentId ? { ...s, [field]: value } : s
+      )
+    }));
+    // Backend'e kaydet
+    saveNote(studentId, field, value);
+  };
+
+  // Filtreleme
+  const filteredStudents = programData?.students?.filter(student => {
+    if (filterStudent && !student.student_name.toLowerCase().includes(filterStudent.toLowerCase())) {
+      return false;
     }
-    acc[teacherName].push(pl);
-    return acc;
-  }, {});
+    if (filterTeacher !== 'all') {
+      const hasTeacher = Object.keys(student.teacher_earnings || {}).some(
+        t => t === filterTeacher || programData.teachers.find(te => te.id === filterTeacher)?.name === t
+      );
+      if (!hasTeacher) return false;
+    }
+    if (filterBranch !== 'all') {
+      if (!student.branch_details?.[filterBranch]) return false;
+    }
+    if (filterPaymentStatus !== 'all') {
+      if (filterPaymentStatus === 'paid' && student.payment_status !== 'Ödendi') return false;
+      if (filterPaymentStatus === 'pending' && student.payment_status === 'Ödendi') return false;
+    }
+    return true;
+  }) || [];
 
-  // Summary calculations
-  const totalPlannedLessons = filteredLessons.reduce((sum, pl) => sum + pl.number_of_lessons, 0);
-  const uniqueStudents = new Set(filteredLessons.map(pl => pl.student_id)).size;
-  const uniqueTeachers = new Set(filteredLessons.map(pl => pl.teacher_id)).size;
+  // Genel toplamlar
+  const grandTotal = filteredStudents.reduce((sum, s) => sum + (s.total_payment || 0), 0);
+
+  if (loading) {
+    return (
+      <AdminLayout>
+        <div className="text-center py-12">Yükleniyor...</div>
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout>
@@ -81,12 +119,12 @@ const AdminMonthlyProgram = () => {
             <h1 className="text-4xl font-extrabold text-slate-800 mb-2" data-testid="admin-monthly-program-title">
               Aylık Program
             </h1>
-            <p className="text-slate-600">Tüm öğretmenlerin ders planlamaları</p>
+            <p className="text-slate-600">Öğrenci ders planları ve ödeme takibi</p>
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="admin-card p-6 mb-8">
+        {/* Filtreler */}
+        <div className="admin-card p-6 mb-6">
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
               <Filter size={18} className="text-slate-500" />
@@ -94,7 +132,7 @@ const AdminMonthlyProgram = () => {
             </div>
             
             <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-              <SelectTrigger className="w-44">
+              <SelectTrigger className="w-40" data-testid="month-filter">
                 <SelectValue placeholder="Ay seçin" />
               </SelectTrigger>
               <SelectContent>
@@ -104,127 +142,232 @@ const AdminMonthlyProgram = () => {
               </SelectContent>
             </Select>
 
-            <Select value={selectedTeacher} onValueChange={setSelectedTeacher}>
-              <SelectTrigger className="w-44">
+            <Input 
+              placeholder="Öğrenci ara..." 
+              value={filterStudent}
+              onChange={(e) => setFilterStudent(e.target.value)}
+              className="w-40"
+              data-testid="student-filter"
+            />
+
+            <Select value={filterTeacher} onValueChange={setFilterTeacher}>
+              <SelectTrigger className="w-40">
                 <SelectValue placeholder="Öğretmen" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tüm Öğretmenler</SelectItem>
-                {teachers.map(t => (
+                {programData?.teachers?.map(t => (
                   <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
 
-            <Select value={selectedBranch} onValueChange={setSelectedBranch}>
-              <SelectTrigger className="w-44">
+            <Select value={filterBranch} onValueChange={setFilterBranch}>
+              <SelectTrigger className="w-40">
                 <SelectValue placeholder="Branş" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tüm Branşlar</SelectItem>
-                {branches.map(b => (
-                  <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                {programData?.branches?.map(b => (
+                  <SelectItem key={b} value={b}>{b}</SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={filterPaymentStatus} onValueChange={setFilterPaymentStatus}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Ödeme Durumu" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tümü</SelectItem>
+                <SelectItem value="paid">Ödendi</SelectItem>
+                <SelectItem value="pending">Bekliyor</SelectItem>
               </SelectContent>
             </Select>
           </div>
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="admin-card p-6">
-            <p className="text-sm text-slate-500 mb-1">Planlanan Ders</p>
-            <p className="text-3xl font-bold text-blue-600">{totalPlannedLessons}</p>
+        {/* Özet Kartları */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="admin-card p-4">
+            <p className="text-sm text-slate-500">Toplam Öğrenci</p>
+            <p className="text-2xl font-bold text-blue-600">{filteredStudents.length}</p>
           </div>
-          <div className="admin-card p-6">
-            <p className="text-sm text-slate-500 mb-1">Öğrenci Sayısı</p>
-            <p className="text-3xl font-bold text-green-600">{uniqueStudents}</p>
+          <div className="admin-card p-4">
+            <p className="text-sm text-slate-500">Toplam Alınacak</p>
+            <p className="text-2xl font-bold text-green-600">{grandTotal.toFixed(2)} ₺</p>
           </div>
-          <div className="admin-card p-6">
-            <p className="text-sm text-slate-500 mb-1">Öğretmen Sayısı</p>
-            <p className="text-3xl font-bold text-purple-600">{uniqueTeachers}</p>
+          <div className="admin-card p-4">
+            <p className="text-sm text-slate-500">Branş Sayısı</p>
+            <p className="text-2xl font-bold text-purple-600">{programData?.branches?.length || 0}</p>
           </div>
-          <div className="admin-card p-6">
-            <p className="text-sm text-slate-500 mb-1">Planlama Kaydı</p>
-            <p className="text-3xl font-bold text-orange-600">{filteredLessons.length}</p>
+          <div className="admin-card p-4">
+            <p className="text-sm text-slate-500">Aktif Öğretmen</p>
+            <p className="text-2xl font-bold text-orange-600">{programData?.teachers?.length || 0}</p>
           </div>
         </div>
 
-        {loading ? (
-          <div className="text-center py-12">
-            <p className="text-slate-600">Yükleniyor...</p>
-          </div>
-        ) : filteredLessons.length === 0 ? (
+        {/* Ana Tablo */}
+        {filteredStudents.length === 0 ? (
           <div className="admin-card p-12 text-center">
             <Calendar size={48} className="mx-auto mb-4 text-slate-400" />
-            <p className="text-slate-600 text-lg">Bu dönem için planlı ders bulunamadı</p>
-            <p className="text-slate-500 text-sm mt-2">
-              Öğretmenler ders planlaması yaptığında burada görünecektir
-            </p>
+            <p className="text-slate-600 text-lg">Bu dönem için veri bulunamadı</p>
           </div>
         ) : (
-          /* List View - Grouped by Teacher */
-          <div className="space-y-6">
-            {Object.entries(groupedByTeacher).map(([teacherName, lessons]) => (
-              <div key={teacherName} className="admin-card p-6">
-                <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
-                  <Users size={20} className="text-blue-600" />
-                  {teacherName}
-                  <span className="text-sm font-normal text-slate-500">
-                    ({lessons.length} planlama, {lessons.reduce((s, l) => s + l.number_of_lessons, 0)} ders)
-                  </span>
-                </h2>
+          <div className="admin-card overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-100">
+                  <tr>
+                    {/* Sabit Kolonlar */}
+                    <th className="text-left py-3 px-3 font-semibold text-slate-700 whitespace-nowrap sticky left-0 bg-slate-100 z-10">Not</th>
+                    <th className="text-left py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">Ödeme Durumu</th>
+                    <th className="text-left py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">Hesap Adı</th>
+                    <th className="text-left py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">Dersler</th>
+                    <th className="text-left py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">Öğrenci</th>
+                    <th className="text-left py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">Veli</th>
+                    <th className="text-left py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">Ödeme Tarihi</th>
+                    <th className="text-right py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">Toplam</th>
+                    
+                    {/* Branş Kolonları */}
+                    {programData?.branches?.map(branch => (
+                      <th key={branch} colSpan={3} className="text-center py-3 px-3 font-semibold text-blue-700 bg-blue-50 border-l whitespace-nowrap">
+                        {branch}
+                      </th>
+                    ))}
+                    
+                    {/* Öğretmen Kolonları */}
+                    {programData?.teachers?.map(teacher => (
+                      <th key={teacher.id} className="text-center py-3 px-3 font-semibold text-emerald-700 bg-emerald-50 border-l whitespace-nowrap">
+                        {teacher.name}
+                      </th>
+                    ))}
+                  </tr>
+                  
+                  {/* Alt başlıklar - Branşlar için */}
+                  <tr className="bg-slate-50">
+                    <th colSpan={8}></th>
+                    {programData?.branches?.map(branch => (
+                      <React.Fragment key={`sub-${branch}`}>
+                        <th className="text-center py-2 px-2 text-xs text-slate-500 border-l">Tarih</th>
+                        <th className="text-center py-2 px-2 text-xs text-slate-500">Birim</th>
+                        <th className="text-center py-2 px-2 text-xs text-slate-500">Toplam</th>
+                      </React.Fragment>
+                    ))}
+                    {programData?.teachers?.map(teacher => (
+                      <th key={`sub-t-${teacher.id}`} className="text-center py-2 px-2 text-xs text-slate-500 border-l">Kazanç</th>
+                    ))}
+                  </tr>
+                </thead>
                 
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left py-3 px-2 text-sm font-semibold text-slate-600">Öğrenci</th>
-                        <th className="text-left py-3 px-2 text-sm font-semibold text-slate-600">Öğretmen</th>
-                        <th className="text-left py-3 px-2 text-sm font-semibold text-slate-600">Branş</th>
-                        <th className="text-left py-3 px-2 text-sm font-semibold text-slate-600">Tarihler</th>
-                        <th className="text-center py-3 px-2 text-sm font-semibold text-slate-600">Ders Sayısı</th>
-                        <th className="text-center py-3 px-2 text-sm font-semibold text-slate-600">Mesaj</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {lessons.map((pl) => (
-                        <tr key={pl.id} className="border-b hover:bg-slate-50">
-                          <td className="py-3 px-2 font-medium">{pl.student_name}</td>
-                          <td className="py-3 px-2">
-                            <span className="text-sm text-slate-700 font-medium">
-                              {pl.teacher_name}
-                            </span>
+                <tbody>
+                  {filteredStudents.map((student) => (
+                    <tr key={student.student_id} className="border-b hover:bg-slate-50" data-testid={`student-row-${student.student_id}`}>
+                      {/* Not - Editable */}
+                      <td className="py-2 px-2 sticky left-0 bg-white z-10">
+                        <Input
+                          value={student.note || ''}
+                          onChange={(e) => handleNoteChange(student.student_id, 'note', e.target.value)}
+                          className="w-28 h-8 text-xs"
+                          placeholder="Not..."
+                          data-testid={`note-${student.student_id}`}
+                        />
+                      </td>
+                      
+                      {/* Ödeme Durumu - Editable */}
+                      <td className="py-2 px-2">
+                        <Input
+                          value={student.payment_status || ''}
+                          onChange={(e) => handleNoteChange(student.student_id, 'payment_status', e.target.value)}
+                          className="w-24 h-8 text-xs"
+                          placeholder="Durum..."
+                          data-testid={`payment-status-${student.student_id}`}
+                        />
+                      </td>
+                      
+                      {/* Hesap Adı */}
+                      <td className="py-2 px-2 text-xs text-slate-600 whitespace-nowrap">
+                        {student.account_name || '-'}
+                      </td>
+                      
+                      {/* Dersler */}
+                      <td className="py-2 px-2 text-xs">
+                        <span className="text-blue-600">{student.courses || '-'}</span>
+                      </td>
+                      
+                      {/* Öğrenci */}
+                      <td className="py-2 px-2 font-medium text-slate-800 whitespace-nowrap">
+                        {student.student_name}
+                      </td>
+                      
+                      {/* Veli */}
+                      <td className="py-2 px-2 text-xs text-slate-600 whitespace-nowrap">
+                        {student.parent_name}
+                      </td>
+                      
+                      {/* Ödeme Tarihi - Editable */}
+                      <td className="py-2 px-2">
+                        <Input
+                          type="date"
+                          value={student.payment_date || ''}
+                          onChange={(e) => handleNoteChange(student.student_id, 'payment_date', e.target.value)}
+                          className="w-32 h-8 text-xs"
+                          data-testid={`payment-date-${student.student_id}`}
+                        />
+                      </td>
+                      
+                      {/* Toplam */}
+                      <td className="py-2 px-2 text-right font-bold text-green-600 whitespace-nowrap">
+                        {student.total_payment?.toFixed(2) || '0'} ₺
+                      </td>
+                      
+                      {/* Branş Detayları */}
+                      {programData?.branches?.map(branch => {
+                        const detail = student.branch_details?.[branch];
+                        return (
+                          <React.Fragment key={`${student.student_id}-${branch}`}>
+                            <td className="py-2 px-2 text-xs text-slate-600 border-l whitespace-nowrap">
+                              {detail?.dates || '-'}
+                            </td>
+                            <td className="py-2 px-2 text-xs text-center text-slate-600">
+                              {detail?.unit_price ? `${detail.unit_price}₺` : '-'}
+                            </td>
+                            <td className="py-2 px-2 text-xs text-center font-medium text-blue-600">
+                              {detail?.total ? `${detail.total}₺` : '-'}
+                            </td>
+                          </React.Fragment>
+                        );
+                      })}
+                      
+                      {/* Öğretmen Kazançları */}
+                      {programData?.teachers?.map(teacher => {
+                        const earning = student.teacher_earnings?.[teacher.name];
+                        return (
+                          <td key={`${student.student_id}-t-${teacher.id}`} className="py-2 px-2 text-xs text-center font-medium text-emerald-600 border-l">
+                            {earning ? `${earning.toFixed(2)}₺` : '-'}
                           </td>
-                          <td className="py-3 px-2">
-                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
-                              {pl.branch_name}
-                            </span>
-                          </td>
-                          <td className="py-3 px-2 text-sm text-slate-600">
-                            {pl.dates ? pl.dates.split(',').map((d, i) => (
-                              <span key={i} className="inline-block bg-slate-100 px-2 py-0.5 rounded mr-1 mb-1">
-                                {d.trim()}
-                              </span>
-                            )) : '-'}
-                          </td>
-                          <td className="py-3 px-2 text-center">
-                            <span className="font-bold text-blue-600">{pl.number_of_lessons}</span>
-                          </td>
-                          <td className="py-3 px-2 text-center">
-                            {pl.messaged ? (
-                              <span className="text-green-600 text-xs">✓ Gönderildi</span>
-                            ) : (
-                              <span className="text-slate-400 text-xs">-</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Öğretmen Toplamları */}
+        {programData?.teacher_totals && Object.keys(programData.teacher_totals).length > 0 && (
+          <div className="admin-card p-6 mt-6">
+            <h2 className="text-lg font-bold text-slate-800 mb-4">Öğretmen Aylık Kazanç Toplamları</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              {Object.entries(programData.teacher_totals).map(([teacherName, total]) => (
+                <div key={teacherName} className="p-4 bg-emerald-50 rounded-lg">
+                  <p className="text-sm text-slate-600">{teacherName}</p>
+                  <p className="text-xl font-bold text-emerald-600">{total.toFixed(2)} ₺</p>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
       </div>
