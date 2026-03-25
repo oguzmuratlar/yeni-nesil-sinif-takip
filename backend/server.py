@@ -205,6 +205,7 @@ class Lesson(BaseModel):
     number_of_lessons: int
     season_id: Optional[str] = None
     teacher_rate: Optional[float] = None  # Ücret, ders oluşturulduğu anki fiyat (geriye dönük değişiklik yapılmaz)
+    group_id: Optional[str] = None  # Grup dersi ise grubun ID'si
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class LessonCreate(BaseModel):
@@ -1380,8 +1381,40 @@ async def create_group_lesson(
     if current_user.user_type == "teacher" and group.get("teacher_id") != current_user.teacher_id:
         raise HTTPException(status_code=403, detail="Access denied")
     
-    # Create lesson for each student in the group
+    # Grup boyutunu belirle ve öğretmen ücretini hesapla
+    group_size = len(group["student_ids"])
+    
+    # 4+ kişilik gruplarda öğretmen 4 kişi üzerinden kazanır
+    effective_group_size = min(group_size, 4)
+    
+    # Grup boyutuna göre öğretmen fiyatını al
+    teacher_rate = None
+    group_price = await db.teacher_prices.find_one({
+        "teacher_id": group.get("teacher_id"),
+        "branch_id": branch_id,
+        "group_size": effective_group_size
+    }, {"_id": 0})
+    
+    if group_price:
+        teacher_rate = group_price["price"]
+    else:
+        # Genel birebir fiyatı kullan
+        teacher_price = await db.teacher_prices.find_one({
+            "teacher_id": group.get("teacher_id"),
+            "branch_id": branch_id,
+            "group_size": None
+        }, {"_id": 0})
+        if teacher_price:
+            teacher_rate = teacher_price["price"]
+    
+    # GRUP DERSİ ÖĞRETMENİ KAZANCI DÜZELTME:
+    # Grup dersi için öğretmen kazancı SADECE BİR KERE hesaplanmalı.
+    # Bu yüzden ilk öğrenciye tam teacher_rate yazılır, diğerlerine 0 yazılır.
+    # Böylece toplam hesaplamada grup dersi 1 kere sayılır.
+    
     created_lessons = []
+    is_first_student = True
+    
     for student_id in group["student_ids"]:
         # Find student course
         course = await db.student_courses.find_one({
@@ -1391,37 +1424,16 @@ async def create_group_lesson(
         }, {"_id": 0})
         
         if course:
-            # Grup dersi için öğretmenin o anki ücretini al
-            group_size = len(group["student_ids"])
-            teacher_rate = None
-            
-            # 4+ kişilik gruplarda öğretmen 4 kişi üzerinden kazanır
-            effective_group_size = min(group_size, 4)
-            
-            # Önce grup boyutuna göre fiyat ara
-            group_price = await db.teacher_prices.find_one({
-                "teacher_id": group.get("teacher_id"),
-                "branch_id": branch_id,
-                "group_size": effective_group_size
-            }, {"_id": 0})
-            
-            if group_price:
-                teacher_rate = group_price["price"]
-            else:
-                # Genel birebir fiyatı kullan
-                teacher_price = await db.teacher_prices.find_one({
-                    "teacher_id": group.get("teacher_id"),
-                    "branch_id": branch_id,
-                    "group_size": None
-                }, {"_id": 0})
-                if teacher_price:
-                    teacher_rate = teacher_price["price"]
+            # İlk öğrenciye tam ücret, diğerlerine 0 (duplikasyonu önlemek için)
+            lesson_teacher_rate = teacher_rate if is_first_student else 0
+            is_first_student = False
             
             lesson = Lesson(
                 student_course_id=course["id"],
                 date=date,
                 number_of_lessons=number_of_lessons,
-                teacher_rate=teacher_rate
+                teacher_rate=lesson_teacher_rate,
+                group_id=group_id  # Grup ID'si kaydediyoruz
             )
             doc = lesson.model_dump()
             doc['created_at'] = doc['created_at'].isoformat()
@@ -1772,6 +1784,69 @@ async def year_end(current_user: User = Depends(get_current_user)):
         "message": "Sene sonu işlemi tamamlandı",
         "upgraded_count": upgraded_count,
         "deactivated_count": deactivated_count
+    }
+
+# ============= FIX GROUP LESSON EARNINGS =============
+
+@api_router.post("/fix-group-lesson-earnings")
+async def fix_group_lesson_earnings(current_user: User = Depends(get_current_user)):
+    """
+    Mevcut grup derslerindeki öğretmen kazancı duplicasyonunu düzelt.
+    
+    SORUN: Grup dersi eklendiğinde her öğrenci için ayrı lesson kaydı oluşuyor
+    ve her birine aynı teacher_rate yazılıyor. Bu da öğretmen kazancının
+    öğrenci sayısı kadar katlanmasına neden oluyor.
+    
+    ÇÖZÜM: Aynı tarih, aynı group_id veya aynı branş/öğretmen kombinasyonundaki
+    derslerde sadece ilk öğrenciye teacher_rate bırak, diğerlerini 0 yap.
+    """
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can fix earnings")
+    
+    # Tüm dersleri getir
+    lessons = await db.lessons.find({}, {"_id": 0}).to_list(10000)
+    
+    # Tarihe ve student_course'a göre grupla
+    # Aynı tarihte aynı öğretmene ait dersler grup dersi olabilir
+    courses = await db.student_courses.find({}, {"_id": 0}).to_list(10000)
+    course_map = {c["id"]: c for c in courses}
+    
+    # Tarih + Öğretmen + Branş bazında grupla
+    lesson_groups = {}
+    for lesson in lessons:
+        course = course_map.get(lesson.get("student_course_id"))
+        if not course:
+            continue
+        
+        key = f"{lesson['date']}_{course['teacher_id']}_{course['branch_id']}"
+        if key not in lesson_groups:
+            lesson_groups[key] = []
+        lesson_groups[key].append(lesson)
+    
+    fixed_count = 0
+    
+    # Her grupta sadece ilk dersin teacher_rate'ini koru, diğerlerini 0 yap
+    for key, group_lessons in lesson_groups.items():
+        if len(group_lessons) <= 1:
+            continue  # Tek ders, düzeltmeye gerek yok
+        
+        # Aynı tarihte aynı öğretmen aynı branşta birden fazla ders var
+        # Bu muhtemelen grup dersi
+        # İlkini atla, geri kalanların teacher_rate'ini 0 yap
+        for i, lesson in enumerate(group_lessons):
+            if i == 0:
+                continue  # İlk dersi koru
+            
+            if lesson.get("teacher_rate") and lesson["teacher_rate"] > 0:
+                await db.lessons.update_one(
+                    {"id": lesson["id"]},
+                    {"$set": {"teacher_rate": 0}}
+                )
+                fixed_count += 1
+    
+    return {
+        "message": f"Grup dersi kazançları düzeltildi",
+        "fixed_lessons_count": fixed_count
     }
 
 # ============= INIT DATA ROUTE =============
