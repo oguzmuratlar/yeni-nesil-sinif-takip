@@ -121,6 +121,15 @@ const AdminMonthlyProgram = () => {
 
   const grandTotal = filteredStudents.reduce((sum, s) => sum + (s.total_payment || 0), 0);
 
+  // Toplam öğretmen gideri
+  const totalTeacherExpense = useMemo(() => {
+    if (!programData?.teacher_totals) return 0;
+    return Object.values(programData.teacher_totals).reduce((sum, val) => sum + val, 0);
+  }, [programData?.teacher_totals]);
+
+  // Toplam kar = Ciro - Öğretmen Gideri
+  const totalProfit = grandTotal - totalTeacherExpense;
+
   const activeFilterCount = [
     filterStudent,
     filterTeacher !== 'all' ? filterTeacher : '',
@@ -275,21 +284,23 @@ const AdminMonthlyProgram = () => {
 
         {/* Summary Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-4 lg:mb-6">
-          <div className="admin-card p-3 lg:p-4">
-            <p className="text-xs lg:text-sm text-slate-500">Öğrenci</p>
+          <div className="admin-card p-3 lg:p-4" data-testid="student-count-card">
+            <p className="text-xs lg:text-sm text-slate-500">Öğrenci Sayısı</p>
             <p className="text-xl lg:text-2xl font-bold text-blue-600">{filteredStudents.length}</p>
           </div>
-          <div className="admin-card p-3 lg:p-4">
-            <p className="text-xs lg:text-sm text-slate-500">Toplam</p>
+          <div className="admin-card p-3 lg:p-4" data-testid="total-revenue-card">
+            <p className="text-xs lg:text-sm text-slate-500">Toplam Ciro</p>
             <p className="text-xl lg:text-2xl font-bold text-green-600">{grandTotal.toFixed(0)} ₺</p>
           </div>
-          <div className="admin-card p-3 lg:p-4">
-            <p className="text-xs lg:text-sm text-slate-500">Branş</p>
-            <p className="text-xl lg:text-2xl font-bold text-purple-600">{programData?.branches?.length || 0}</p>
+          <div className="admin-card p-3 lg:p-4" data-testid="total-expense-card">
+            <p className="text-xs lg:text-sm text-slate-500">Öğretmen Gideri</p>
+            <p className="text-xl lg:text-2xl font-bold text-orange-600">{totalTeacherExpense.toFixed(0)} ₺</p>
           </div>
-          <div className="admin-card p-3 lg:p-4">
-            <p className="text-xs lg:text-sm text-slate-500">Öğretmen</p>
-            <p className="text-xl lg:text-2xl font-bold text-orange-600">{programData?.teachers?.length || 0}</p>
+          <div className="admin-card p-3 lg:p-4" data-testid="total-profit-card">
+            <p className="text-xs lg:text-sm text-slate-500">Toplam Kar</p>
+            <p className={`text-xl lg:text-2xl font-bold ${totalProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+              {totalProfit.toFixed(0)} ₺
+            </p>
           </div>
         </div>
 

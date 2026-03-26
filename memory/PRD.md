@@ -248,5 +248,10 @@ group_id: str (optional)  # YENİ - Grup dersi için
 
 ## Son Güncelleme
 - Tarih: 2026-03-26
-- Versiyon: 3.0
-- Değişiklik: Branş bazlı kasa sistemi, öğretmen gelir detay ekranları, öğrenci finans takibi
+- Versiyon: 3.1
+- Değişiklik: Admin Aylık Program özet kartları güncellendi
+  - ❌ "Branş Sayısı" ve "Öğretmen Sayısı" kartları kaldırıldı
+  - ✅ "Öğrenci Sayısı" kartı eklendi
+  - ✅ "Toplam Ciro" kartı eklendi
+  - ✅ "Öğretmen Gideri" kartı eklendi
+  - ✅ "Toplam Kar" kartı eklendi (Ciro - Öğretmen Gideri, negatifse kırmızı)
