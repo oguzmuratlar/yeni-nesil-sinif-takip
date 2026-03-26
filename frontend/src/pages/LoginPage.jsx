@@ -131,9 +131,9 @@ const LoginPage = () => {
       >
         <div className="absolute inset-0 bg-gradient-to-br from-blue-900/80 to-indigo-900/80 flex items-center justify-center">
           <div className="text-center text-white p-12">
-            <h2 className="text-5xl font-extrabold mb-4">Eğitim Yönetimi</h2>
+            <h2 className="text-5xl font-extrabold mb-4">Yeni Nesil Sınıf</h2>
             <p className="text-xl font-light">
-              Öğretmen ve öğrencilerinizi tek platformda yönetin
+              Eğitimin Yeni Nesil Standardı
             </p>
           </div>
         </div>
