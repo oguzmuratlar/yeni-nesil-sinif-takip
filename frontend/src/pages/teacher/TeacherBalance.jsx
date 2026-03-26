@@ -6,6 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Wallet, BookOpen, Tent, Youtube, Filter, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { ExpandableText } from '../../components/ui/expandable-text';
 import { formatDateTurkish } from '../../lib/dateUtils';
 
 const TeacherBalance = () => {
@@ -186,7 +187,9 @@ const TeacherBalance = () => {
                 <div key={payment.id} className="flex items-center justify-between p-3 lg:p-6 bg-stone-50 rounded-lg lg:rounded-xl">
                   <div className="min-w-0 flex-1 mr-3">
                     <p className="font-semibold text-slate-800 text-sm lg:text-lg">{formatDateTurkish(payment.date)}</p>
-                    <p className="text-xs lg:text-sm text-stone-600 truncate">{payment.description || 'Öğretmen ödemesi'}</p>
+                    <div className="text-xs lg:text-sm text-stone-600">
+                      <ExpandableText text={payment.description || 'Öğretmen ödemesi'} maxLength={40} />
+                    </div>
                   </div>
                   <p className="font-bold text-green-600 text-base lg:text-xl whitespace-nowrap">{payment.amount?.toFixed(0)} ₺</p>
                 </div>

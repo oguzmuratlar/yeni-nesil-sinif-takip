@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/ta
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../../components/ui/command';
 import { DateInput } from '../../components/ui/date-input';
+import { ExpandableText } from '../../components/ui/expandable-text';
 import { Plus, ArrowUpCircle, ArrowDownCircle, Filter, X, Edit, Trash2, Check, ChevronsUpDown, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../../lib/utils';
@@ -264,7 +265,11 @@ const AdminPayments = () => {
               <span className="text-xs px-2 py-0.5 bg-slate-100 text-slate-600 rounded">{branch.name}</span>
             )}
           </div>
-          {payment.description && <p className="text-xs text-slate-500 truncate mt-1">{payment.description}</p>}
+          {payment.description && (
+            <div className="text-xs text-slate-500 mt-1">
+              <ExpandableText text={payment.description} maxLength={40} />
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <p className={`font-bold text-sm lg:text-base whitespace-nowrap ${isIncome ? 'text-green-600' : 'text-red-600'}`}>
@@ -584,19 +589,6 @@ const AdminPayments = () => {
                       <SelectContent>
                         {branches.map((branch) => (
                           <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="teacher">Öğretmen (Opsiyonel)</Label>
-                    <Select value={newPayment.teacher_id} onValueChange={(value) => setNewPayment({ ...newPayment, teacher_id: value })}>
-                      <SelectTrigger className="h-12">
-                        <SelectValue placeholder="Öğretmen seçin" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {teachers.filter(t => t.status === 'active').map((teacher) => (
-                          <SelectItem key={teacher.id} value={teacher.id}>{teacher.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
