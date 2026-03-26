@@ -6,7 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
-import { Textarea } from '../../components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { toast } from 'sonner';
 import { Users, ArrowLeft, Plus, Calendar } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
@@ -24,9 +24,28 @@ const TeacherGroupPlannedLessons = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newPlan, setNewPlan] = useState({
     dates: '',
-    number_of_lessons: 1,
+    number_of_lessons: '',
     month: new Date().toISOString().substring(0, 7)
   });
+
+  const months = [
+    { value: '2025-01', label: 'Ocak 2025' },
+    { value: '2025-02', label: 'Şubat 2025' },
+    { value: '2025-03', label: 'Mart 2025' },
+    { value: '2025-04', label: 'Nisan 2025' },
+    { value: '2025-05', label: 'Mayıs 2025' },
+    { value: '2025-06', label: 'Haziran 2025' },
+    { value: '2025-09', label: 'Eylül 2025' },
+    { value: '2025-10', label: 'Ekim 2025' },
+    { value: '2025-11', label: 'Kasım 2025' },
+    { value: '2025-12', label: 'Aralık 2025' },
+    { value: '2026-01', label: 'Ocak 2026' },
+    { value: '2026-02', label: 'Şubat 2026' },
+    { value: '2026-03', label: 'Mart 2026' },
+    { value: '2026-04', label: 'Nisan 2026' },
+    { value: '2026-05', label: 'Mayıs 2026' },
+    { value: '2026-06', label: 'Haziran 2026' },
+  ];
 
   useEffect(() => {
     if (user?.teacher_id) {
@@ -83,16 +102,17 @@ const TeacherGroupPlannedLessons = () => {
       await apiClient.post('/group-planned-lessons', {
         group_id: groupId,
         dates: newPlan.dates,
-        number_of_lessons: newPlan.number_of_lessons,
+        number_of_lessons: parseInt(newPlan.number_of_lessons),
         month: newPlan.month
       });
       
       toast.success(`Grup planlaması eklendi - ${group.student_ids?.length || 0} öğrenciye kaydedildi`);
       setDialogOpen(false);
-      setNewPlan({ dates: '', number_of_lessons: 1, month: new Date().toISOString().substring(0, 7) });
+      setNewPlan({ dates: '', number_of_lessons: '', month: new Date().toISOString().substring(0, 7) });
       fetchData();
     } catch (error) {
-      toast.error('Planlama eklenemedi');
+      console.error('Plan error:', error);
+      toast.error(error.response?.data?.detail || 'Planlama eklenemedi');
     }
   };
 
@@ -185,35 +205,40 @@ const TeacherGroupPlannedLessons = () => {
               </DialogHeader>
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Ay</Label>
-                  <Input
-                    type="month"
-                    value={newPlan.month}
-                    onChange={(e) => setNewPlan({ ...newPlan, month: e.target.value })}
-                  />
+                  <Label>Ay *</Label>
+                  <Select value={newPlan.month} onValueChange={(val) => setNewPlan({ ...newPlan, month: val })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Ay seçin" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {months.map(m => (
+                        <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Tarihler</Label>
-                  <Textarea
-                    placeholder="Örn: 5, 12, 19, 26 veya 5 Mart, 12 Mart..."
+                  <Label>Tarihler *</Label>
+                  <Input
+                    placeholder="Örn: 3-10-17-24"
                     value={newPlan.dates}
                     onChange={(e) => setNewPlan({ ...newPlan, dates: e.target.value })}
-                    rows={3}
                   />
-                  <p className="text-xs text-slate-500">Tarihleri virgülle ayırarak yazın</p>
+                  <p className="text-xs text-slate-500">Tarihleri istediğiniz formatta yazın (örn: 3-10-17-24 veya 3, 10, 17, 24)</p>
                 </div>
                 <div className="space-y-2">
-                  <Label>Ders Sayısı (her tarih için)</Label>
+                  <Label>Toplam Ders Sayısı *</Label>
                   <Input
                     type="number"
                     min="1"
+                    placeholder="Örn: 8"
                     value={newPlan.number_of_lessons}
-                    onChange={(e) => setNewPlan({ ...newPlan, number_of_lessons: parseInt(e.target.value) })}
+                    onChange={(e) => setNewPlan({ ...newPlan, number_of_lessons: e.target.value })}
                   />
                 </div>
                 <div className="bg-purple-50 p-3 rounded-lg">
                   <p className="text-sm text-purple-700">
-                    Bu plan <strong>{groupStudentsList.length} öğrenciye</strong> kaydedilecek.
+                    Bu plan <strong>{groupStudentsList.length} öğrenciye</strong> kaydedilecek ve admin aylık programında görünecek.
                   </p>
                 </div>
                 <div className="flex gap-3">

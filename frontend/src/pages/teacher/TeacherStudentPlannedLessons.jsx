@@ -19,10 +19,29 @@ const TeacherStudentPlannedLessons = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newPlanned, setNewPlanned] = useState({
     dates: '',
-    number_of_lessons: 1,
-    month: '',
+    number_of_lessons: '',
+    month: new Date().toISOString().substring(0, 7),
     messaged: false
   });
+
+  const months = [
+    { value: '2025-01', label: 'Ocak 2025' },
+    { value: '2025-02', label: 'Şubat 2025' },
+    { value: '2025-03', label: 'Mart 2025' },
+    { value: '2025-04', label: 'Nisan 2025' },
+    { value: '2025-05', label: 'Mayıs 2025' },
+    { value: '2025-06', label: 'Haziran 2025' },
+    { value: '2025-09', label: 'Eylül 2025' },
+    { value: '2025-10', label: 'Ekim 2025' },
+    { value: '2025-11', label: 'Kasım 2025' },
+    { value: '2025-12', label: 'Aralık 2025' },
+    { value: '2026-01', label: 'Ocak 2026' },
+    { value: '2026-02', label: 'Şubat 2026' },
+    { value: '2026-03', label: 'Mart 2026' },
+    { value: '2026-04', label: 'Nisan 2026' },
+    { value: '2026-05', label: 'Mayıs 2026' },
+    { value: '2026-06', label: 'Haziran 2026' },
+  ];
 
   useEffect(() => {
     fetchData();
@@ -50,17 +69,24 @@ const TeacherStudentPlannedLessons = () => {
 
   const handleAddPlanned = async (e) => {
     e.preventDefault();
+    if (!newPlanned.dates || !newPlanned.number_of_lessons || !newPlanned.month) {
+      toast.error('Tüm alanları doldurun');
+      return;
+    }
     try {
       await apiClient.post('/planned-lessons', {
         student_course_id: courseId,
-        ...newPlanned
+        dates: newPlanned.dates,
+        number_of_lessons: parseInt(newPlanned.number_of_lessons),
+        month: newPlanned.month,
+        messaged: false
       });
       toast.success('Planlanmış ders eklendi');
       setDialogOpen(false);
-      setNewPlanned({ date: '', number_of_lessons: 1, month: '', messaged: false, payment_status: 'pending' });
+      setNewPlanned({ dates: '', number_of_lessons: '', month: new Date().toISOString().substring(0, 7), messaged: false });
       fetchData();
     } catch (error) {
-      toast.error('Ders planlanamadı');
+      toast.error(error.response?.data?.detail || 'Ders planlanamadı');
     }
   };
 
@@ -110,36 +136,44 @@ const TeacherStudentPlannedLessons = () => {
                 </DialogHeader>
                 <form onSubmit={handleAddPlanned} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="dates">Tarihler (virgülle ayırın)</Label>
+                    <Label>Ay *</Label>
+                    <Select value={newPlanned.month} onValueChange={(val) => setNewPlanned({ ...newPlanned, month: val })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Ay seçin" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {months.map(m => (
+                          <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="dates">Tarihler *</Label>
                     <Input
                       id="dates"
                       type="text"
                       value={newPlanned.dates}
                       onChange={(e) => setNewPlanned({ ...newPlanned, dates: e.target.value })}
-                      placeholder="2024-01-15, 2024-01-22, 2024-01-29"
-                      required
+                      placeholder="Örn: 3-10-17-24"
                     />
+                    <p className="text-xs text-slate-500">Tarihleri istediğiniz formatta yazın</p>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="month">Ay</Label>
-                    <Input
-                      id="month"
-                      type="month"
-                      value={newPlanned.month}
-                      onChange={(e) => setNewPlanned({ ...newPlanned, month: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="number">Ders Adedi</Label>
+                    <Label htmlFor="number">Toplam Ders Sayısı *</Label>
                     <Input
                       id="number"
                       type="number"
                       min="1"
+                      placeholder="Örn: 8"
                       value={newPlanned.number_of_lessons}
-                      onChange={(e) => setNewPlanned({ ...newPlanned, number_of_lessons: parseInt(e.target.value) })}
-                      required
+                      onChange={(e) => setNewPlanned({ ...newPlanned, number_of_lessons: e.target.value })}
                     />
+                  </div>
+                  <div className="bg-blue-50 p-3 rounded-lg">
+                    <p className="text-sm text-blue-700">
+                      Bu plan admin aylık programında görünecektir.
+                    </p>
                   </div>
                   <div className="flex gap-3">
                     <Button type="submit" className="flex-1 teacher-btn">Kaydet</Button>
