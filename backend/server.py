@@ -1587,12 +1587,6 @@ async def get_monthly_program_detailed(month: str, current_user: User = Depends(
     teachers = await db.teachers.find({"status": "active"}, {"_id": 0}).to_list(100)
     teacher_map = {t["id"]: t["name"] for t in teachers}
     
-    # Öğretmen fiyatlarını getir
-    teacher_prices = await db.teacher_prices.find({}, {"_id": 0}).to_list(1000)
-    
-    # Ders tipleri - ileride kullanılabilir, şimdilik kaldırıldı
-    # lesson_types = await db.lesson_types.find({}, {"_id": 0}).to_list(10)
-    
     # Bu ay için planlı dersleri getir
     planned_lessons = await db.planned_lessons.find({"month": month}, {"_id": 0}).to_list(10000)
     
@@ -1613,6 +1607,12 @@ async def get_monthly_program_detailed(month: str, current_user: User = Depends(
     # Sonuç listesi
     result = []
     teacher_totals = {t["id"]: 0 for t in teachers}  # Öğretmen kazanç toplamları
+    
+    # Grup bilgilerini getir
+    student_groups = await db.student_groups.find({}, {"_id": 0}).to_list(1000)
+    
+    # İşlenmiş grup planlamalarını takip et (çoklama önlemek için)
+    processed_group_plans = set()
     
     for student in students:
         # Öğrencinin kurslarını bul
@@ -1677,6 +1677,7 @@ async def get_monthly_program_detailed(month: str, current_user: User = Depends(
             }
         
         # Her öğretmen için kazanç hesapla
+        # ÖNEMLI: Grup dersleri için aynı dersi sadece bir kez saymalıyız
         teacher_earnings = {}
         for course in student_course_list:
             teacher_id = course.get("teacher_id")
@@ -1691,24 +1692,35 @@ async def get_monthly_program_detailed(month: str, current_user: User = Depends(
             if not course_planned:
                 continue
             
-            total_lessons = sum([pl.get("number_of_lessons", 0) for pl in course_planned])
-            
-            # Öğretmen ücretini bul
-            teacher_rate = 0
-            for tp in teacher_prices:
-                if tp["teacher_id"] == teacher_id and tp["branch_id"] == course["branch_id"]:
-                    teacher_rate = tp.get("price", 0)
+            # Bu öğrenci bu branşta bir gruba dahil mi kontrol et
+            is_group_lesson = False
+            group_id = None
+            for group in student_groups:
+                if student["id"] in (group.get("student_ids") or []) and group.get("branch_id") == course.get("branch_id"):
+                    is_group_lesson = True
+                    group_id = group["id"]
                     break
             
-            earning = total_lessons * teacher_rate
-            
-            if teacher_name not in teacher_earnings:
-                teacher_earnings[teacher_name] = 0
-            teacher_earnings[teacher_name] += earning
-            
-            # Toplam öğretmen kazancına ekle
-            if teacher_id in teacher_totals:
-                teacher_totals[teacher_id] += earning
+            for pl in course_planned:
+                total_lessons = pl.get("number_of_lessons", 0)
+                teacher_rate = course.get("price", 0)
+                earning = total_lessons * teacher_rate
+                
+                if is_group_lesson and group_id:
+                    # Grup dersi - bu planı daha önce saydık mı kontrol et
+                    plan_key = f"{group_id}-{pl.get('month')}-{pl.get('dates')}"
+                    if plan_key in processed_group_plans:
+                        # Bu grup planı zaten sayıldı, öğretmen kazancını ekleme
+                        continue
+                    processed_group_plans.add(plan_key)
+                
+                if teacher_name not in teacher_earnings:
+                    teacher_earnings[teacher_name] = 0
+                teacher_earnings[teacher_name] += earning
+                
+                # Toplam öğretmen kazancına ekle
+                if teacher_id in teacher_totals:
+                    teacher_totals[teacher_id] += earning
         
         result.append({
             "student_id": student["id"],

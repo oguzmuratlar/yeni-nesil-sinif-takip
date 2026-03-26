@@ -119,14 +119,44 @@ const TeacherGroupPlannedLessons = () => {
   const branch = group ? branches.find(b => b.id === group.branch_id) : null;
   const groupStudentsList = group ? students.filter(s => group.student_ids?.includes(s.id)) : [];
 
-  // Group planned lessons by month
-  const plansByMonth = plannedLessons.reduce((acc, plan) => {
-    if (!acc[plan.month]) {
-      acc[plan.month] = [];
-    }
-    acc[plan.month].push(plan);
-    return acc;
-  }, {});
+  // Format month to Turkish (e.g., "2026-03" -> "Mart 2026")
+  const formatMonthTurkish = (monthStr) => {
+    const monthNames = {
+      '01': 'Ocak', '02': 'Şubat', '03': 'Mart', '04': 'Nisan',
+      '05': 'Mayıs', '06': 'Haziran', '07': 'Temmuz', '08': 'Ağustos',
+      '09': 'Eylül', '10': 'Ekim', '11': 'Kasım', '12': 'Aralık'
+    };
+    if (!monthStr) return '';
+    const [year, month] = monthStr.split('-');
+    return `${monthNames[month] || month} ${year}`;
+  };
+
+  // Group planned lessons by month - sadece benzersiz planları al (group_id bazlı)
+  const getUniquePlansByMonth = () => {
+    const seenPlans = new Set();
+    const uniquePlans = [];
+    
+    plannedLessons.forEach(plan => {
+      // Her ay için benzersiz bir plan olması için key oluştur
+      const planKey = `${plan.month}-${plan.dates}-${plan.number_of_lessons}`;
+      if (!seenPlans.has(planKey)) {
+        seenPlans.add(planKey);
+        uniquePlans.push(plan);
+      }
+    });
+    
+    // Aya göre grupla
+    return uniquePlans.reduce((acc, plan) => {
+      const monthLabel = formatMonthTurkish(plan.month);
+      if (!acc[monthLabel]) {
+        acc[monthLabel] = [];
+      }
+      acc[monthLabel].push(plan);
+      return acc;
+    }, {});
+  };
+
+  const plansByMonth = getUniquePlansByMonth();
 
   if (loading) {
     return (
@@ -260,29 +290,20 @@ const TeacherGroupPlannedLessons = () => {
               <p className="text-slate-500">Henüz planlama yapılmamış</p>
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-4">
               {Object.entries(plansByMonth).sort((a, b) => b[0].localeCompare(a[0])).map(([month, plans]) => (
-                <div key={month} className="border-b pb-4">
-                  <h3 className="font-semibold text-slate-800 mb-3">{month}</h3>
-                  <div className="space-y-2">
-                    {plans.map(plan => (
-                      <div key={plan.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                        <div>
-                          <div className="flex flex-wrap gap-1 mb-1">
-                            {plan.dates.split(',').map((d, i) => (
-                              <span key={i} className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
-                                {d.trim()}
-                              </span>
-                            ))}
-                          </div>
-                          <p className="text-sm text-slate-600">{plan.number_of_lessons} ders</p>
-                        </div>
-                        {plan.messaged && (
-                          <span className="text-xs text-green-600">✓ Mesaj gönderildi</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                <div key={month} className="bg-slate-50 rounded-lg p-4">
+                  <h3 className="font-bold text-purple-700 text-lg mb-2">{month}</h3>
+                  {plans.map((plan, idx) => (
+                    <div key={plan.id || idx} className="flex items-center justify-between">
+                      <span className="text-slate-700 font-medium">
+                        {plan.dates} - {plan.number_of_lessons} Ders
+                      </span>
+                      {plan.messaged && (
+                        <span className="text-xs text-green-600">✓ Mesaj gönderildi</span>
+                      )}
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>
