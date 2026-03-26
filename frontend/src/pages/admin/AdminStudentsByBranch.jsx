@@ -148,7 +148,12 @@ const AdminStudentsByBranch = () => {
                   {/* Student Info */}
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-bold text-slate-800">{student.student_name}</h3>
+                      <h3 
+                        className="font-bold text-slate-800 cursor-pointer hover:text-blue-600 hover:underline"
+                        onClick={() => navigate(`/admin/students/${student.student_id}`)}
+                      >
+                        {student.student_name}
+                      </h3>
                       <Badge variant={student.status === 'borclu' ? 'destructive' : 'secondary'}>
                         {student.status === 'borclu' ? 'Borçlu' : 'Alacaklı'}
                       </Badge>

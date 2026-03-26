@@ -97,44 +97,46 @@ const AdminStudents = () => {
           </Button>
         </div>
 
-        {/* Özet Bilgiler */}
-        {studentStats && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-6">
-            <div className="admin-card p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <Users size={20} className="text-blue-600" />
+        {/* Branş Bazlı Öğrenci Listelerine Hızlı Erişim - EN ÜSTTE */}
+        {branches.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+            {branches.map((branch) => (
+              <div
+                key={branch.id}
+                onClick={() => navigate(`/admin/students/branch/${branch.id}`)}
+                className="admin-card p-5 cursor-pointer hover:shadow-lg transition-all hover:scale-[1.02] group"
+                data-testid={`branch-students-${branch.id}`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-3 rounded-xl ${
+                      branch.name.includes('Matematik') ? 'bg-blue-100' :
+                      branch.name.includes('Fen') ? 'bg-green-100' : 'bg-purple-100'
+                    }`}>
+                      <BookOpen size={24} className={`${
+                        branch.name.includes('Matematik') ? 'text-blue-600' :
+                        branch.name.includes('Fen') ? 'text-green-600' : 'text-purple-600'
+                      }`} />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors">
+                        {branch.name}
+                      </h3>
+                      <p className="text-sm text-slate-500">Öğrenci Listesi</p>
+                    </div>
+                  </div>
+                  <ChevronRight size={20} className="text-slate-400 group-hover:text-blue-600 transition-colors" />
                 </div>
-                <div>
-                  <p className="text-xs text-slate-500">Toplam Öğrenci</p>
-                  <p className="text-xl font-bold text-slate-800">{studentStats.total}</p>
-                </div>
-              </div>
-            </div>
-            <div className="admin-card p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <Users size={20} className="text-green-600" />
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500">Aktif</p>
-                  <p className="text-xl font-bold text-green-600">{studentStats.total_active}</p>
-                </div>
-              </div>
-            </div>
-            {Object.entries(studentStats.by_teacher || {}).slice(0, 2).map(([teacherName, count]) => (
-              <div key={teacherName} className="admin-card p-4">
-                <div>
-                  <p className="text-xs text-slate-500 truncate">{teacherName}</p>
-                  <p className="text-xl font-bold text-slate-800">{count} <span className="text-sm font-normal text-slate-500">öğrenci</span></p>
-                </div>
+                <p className="text-xs text-slate-400 mt-3">
+                  Detaylı finans bilgisi ve borç/alacak durumu
+                </p>
               </div>
             ))}
           </div>
         )}
 
-        {/* Öğretmen bazında detaylı istatistikler (genişletilmiş) */}
-        {studentStats && Object.keys(studentStats.by_teacher || {}).length > 2 && (
+        {/* Öğretmen Bazında Öğrenci Sayıları */}
+        {studentStats && Object.keys(studentStats.by_teacher || {}).length > 0 && (
           <div className="admin-card p-4 mb-6">
             <h3 className="text-sm font-semibold text-slate-700 mb-3">Öğretmen Bazında Öğrenci Sayıları</h3>
             <div className="flex flex-wrap gap-2">
@@ -144,36 +146,6 @@ const AdminStudents = () => {
                 </Badge>
               ))}
             </div>
-          </div>
-        )}
-
-        {/* Branş Bazlı Öğrenci Listelerine Hızlı Erişim */}
-        {branches.length > 0 && (
-          <div className="admin-card p-4 mb-6">
-            <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
-              <BookOpen size={16} />
-              Branş Bazlı Öğrenci Listeleri
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {branches.map((branch) => (
-                <Button
-                  key={branch.id}
-                  variant="outline"
-                  onClick={() => navigate(`/admin/students/branch/${branch.id}`)}
-                  className="h-12 justify-between"
-                  data-testid={`branch-students-${branch.id}`}
-                >
-                  <span className="flex items-center gap-2">
-                    <BookOpen size={16} />
-                    {branch.name} Öğrencileri
-                  </span>
-                  <ChevronRight size={16} className="text-slate-400" />
-                </Button>
-              ))}
-            </div>
-            <p className="text-xs text-slate-500 mt-2">
-              Her branş için detaylı finans bilgisi ve borç/alacak durumu
-            </p>
           </div>
         )}
 
