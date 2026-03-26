@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import TeacherLayout from '../../components/layouts/TeacherLayout';
 import apiClient from '../../api/axios';
+import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
@@ -14,6 +15,7 @@ import { formatDateTurkish } from '../../lib/dateUtils';
 const TeacherGroupLessons = () => {
   const { groupId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   
   const [group, setGroup] = useState(null);
   const [students, setStudents] = useState([]);
@@ -27,8 +29,10 @@ const TeacherGroupLessons = () => {
   });
 
   useEffect(() => {
-    fetchData();
-  }, [groupId]);
+    if (user?.teacher_id) {
+      fetchData();
+    }
+  }, [groupId, user]);
 
   const fetchData = async () => {
     try {
@@ -39,23 +43,30 @@ const TeacherGroupLessons = () => {
         apiClient.get('/lessons')
       ]);
       
-      const foundGroup = groupsRes.data.find(g => g.id === groupId);
+      // Öğretmene ait grubu bul
+      const teacherGroups = groupsRes.data.filter(g => g.teacher_id === user.teacher_id);
+      const foundGroup = teacherGroups.find(g => g.id === groupId);
+      
+      if (!foundGroup) {
+        toast.error('Bu gruba erişim yetkiniz yok');
+        setLoading(false);
+        return;
+      }
+      
       setGroup(foundGroup);
       setStudents(studentsRes.data);
       setBranches(branchesRes.data);
       
       // Filter lessons for students in this group
-      if (foundGroup) {
-        const groupStudentIds = foundGroup.student_ids || [];
-        // Get courses for group students
-        const coursesRes = await apiClient.get('/student-courses');
-        const groupCourseIds = coursesRes.data
-          .filter(c => groupStudentIds.includes(c.student_id) && c.branch_id === foundGroup.branch_id)
-          .map(c => c.id);
-        
-        const groupLessons = lessonsRes.data.filter(l => groupCourseIds.includes(l.student_course_id));
-        setLessons(groupLessons);
-      }
+      const groupStudentIds = foundGroup.student_ids || [];
+      // Get courses for group students
+      const coursesRes = await apiClient.get('/student-courses');
+      const groupCourseIds = coursesRes.data
+        .filter(c => groupStudentIds.includes(c.student_id) && c.branch_id === foundGroup.branch_id)
+        .map(c => c.id);
+      
+      const groupLessons = lessonsRes.data.filter(l => groupCourseIds.includes(l.student_course_id));
+      setLessons(groupLessons);
     } catch (error) {
       toast.error('Veriler yüklenemedi');
     } finally {

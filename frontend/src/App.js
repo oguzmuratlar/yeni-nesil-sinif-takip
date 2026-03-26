@@ -46,6 +46,7 @@ import TeacherStudentPlannedLessons from "./pages/teacher/TeacherStudentPlannedL
 import TeacherBalance from "./pages/teacher/TeacherBalance";
 import TeacherGroupLessons from "./pages/teacher/TeacherGroupLessons";
 import TeacherGroupPlannedLessons from "./pages/teacher/TeacherGroupPlannedLessons";
+import TeacherSchedule from "./pages/teacher/TeacherSchedule";
 import TeacherCamps from "./pages/teacher/TeacherCamps";
 import TeacherYoutube from "./pages/teacher/TeacherYoutube";
 import TeacherLessonIncomeDetail from "./pages/teacher/TeacherLessonIncomeDetail";
@@ -259,6 +260,11 @@ function App() {
             <Route path="/teacher/balance" element={
               <ProtectedRoute requiredRole="teacher">
                 <TeacherBalance />
+              </ProtectedRoute>
+            } />
+            <Route path="/teacher/schedule" element={
+              <ProtectedRoute requiredRole="teacher">
+                <TeacherSchedule />
               </ProtectedRoute>
             } />
             <Route path="/teacher/groups/:groupId/lessons" element={

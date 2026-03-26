@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import TeacherLayout from '../../components/layouts/TeacherLayout';
 import apiClient from '../../api/axios';
+import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Book, Calendar, Search, User, Users, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 
 const TeacherStudents = () => {
+  const { user } = useAuth();
   const [students, setStudents] = useState([]);
   const [groups, setGroups] = useState([]);
   const [courses, setCourses] = useState([]);
@@ -19,8 +21,10 @@ const TeacherStudents = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (user?.teacher_id) {
+      fetchData();
+    }
+  }, [user]);
 
   const fetchData = async () => {
     try {
@@ -32,17 +36,15 @@ const TeacherStudents = () => {
       ]);
       
       setStudents(studentsRes.data);
-      setCourses(coursesRes.data);
       setBranches(branchesRes.data);
       
-      // Get current user's teacher_id from courses
-      const teacherCourses = coursesRes.data;
-      if (teacherCourses.length > 0) {
-        const teacherId = teacherCourses[0].teacher_id;
-        // Filter groups for this teacher
-        const teacherGroups = groupsRes.data.filter(g => g.teacher_id === teacherId);
-        setGroups(teacherGroups);
-      }
+      // Öğretmene ait kursları filtrele
+      const teacherCourses = coursesRes.data.filter(c => c.teacher_id === user.teacher_id);
+      setCourses(teacherCourses);
+      
+      // Öğretmene ait grupları filtrele
+      const teacherGroups = groupsRes.data.filter(g => g.teacher_id === user.teacher_id);
+      setGroups(teacherGroups);
     } catch (error) {
       toast.error('Veriler yüklenemedi');
     } finally {
