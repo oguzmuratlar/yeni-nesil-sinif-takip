@@ -6,7 +6,7 @@ import { Button } from '../../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
-import { DatePicker } from '../../components/ui/date-picker';
+import { DateInput } from '../../components/ui/date-input';
 import { Plus, Trash2, ArrowLeft, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDateTurkish } from '../../lib/dateUtils';
@@ -114,11 +114,12 @@ const AdminStudentLessons = () => {
                 <form onSubmit={handleAddLesson} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="date">Tarih</Label>
-                    <DatePicker
+                    <DateInput
                       value={newLesson.date}
                       onChange={(date) => setNewLesson({ ...newLesson, date })}
-                      placeholder="Tarih seçin"
+                      placeholder="GG.AA.YYYY"
                     />
+                    <p className="text-xs text-muted-foreground">Örnek: 12.02.2025</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="number">Ders Adedi</Label>

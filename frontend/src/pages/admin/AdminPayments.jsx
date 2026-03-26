@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../../components/ui/command';
-import { DatePicker } from '../../components/ui/date-picker';
+import { DateInput } from '../../components/ui/date-input';
 import { Plus, ArrowUpCircle, ArrowDownCircle, Filter, X, Edit, Trash2, Check, ChevronsUpDown, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../../lib/utils';
@@ -661,11 +661,12 @@ const AdminPayments = () => {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="date">Tarih *</Label>
-                <DatePicker
+                <DateInput
                   value={newPayment.date}
                   onChange={(date) => setNewPayment({ ...newPayment, date })}
-                  placeholder="Tarih seçin"
+                  placeholder="GG.AA.YYYY"
                 />
+                <p className="text-xs text-muted-foreground">Örnek: 12.02.2025</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="cashbox">Kasa *</Label>

@@ -5,7 +5,7 @@ import apiClient from '../../api/axios';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
-import { DatePicker } from '../../components/ui/date-picker';
+import { DateInput } from '../../components/ui/date-input';
 import { toast } from 'sonner';
 import { Users, ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
@@ -178,11 +178,12 @@ const TeacherGroupLessons = () => {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>Tarih</Label>
-                  <DatePicker
+                  <DateInput
                     value={newLesson.date}
                     onChange={(date) => setNewLesson({ ...newLesson, date })}
-                    placeholder="Tarih seçin"
+                    placeholder="GG.AA.YYYY"
                   />
+                  <p className="text-xs text-muted-foreground">Örnek: 12.02.2025</p>
                 </div>
                 <div className="space-y-2">
                   <Label>Ders Sayısı</Label>
