@@ -15,7 +15,8 @@ import {
   Tent,
   Youtube,
   Menu,
-  X
+  X,
+  Wallet
 } from 'lucide-react';
 
 const AdminLayout = ({ children }) => {
@@ -51,6 +52,7 @@ const AdminLayout = ({ children }) => {
     { path: '/admin/camps', label: 'Kamplar', icon: Tent },
     { path: '/admin/youtube', label: 'YouTube', icon: Youtube },
     { path: '/admin/branches', label: 'Branşlar', icon: BookOpen },
+    { path: '/admin/cashboxes', label: 'Kasalar', icon: Wallet },
     { path: '/admin/payments', label: 'Ödemeler', icon: CreditCard },
     { path: '/admin/bank-accounts', label: 'Banka Hesapları', icon: Landmark },
     { path: '/admin/monthly-program', label: 'Aylık Program', icon: Calendar },

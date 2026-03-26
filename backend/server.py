@@ -184,7 +184,8 @@ class StudentCourse(BaseModel):
     teacher_id: str
     branch_id: str
     lesson_type_id: str
-    price: float
+    price: float  # Öğretmen ücreti
+    student_price: Optional[float] = None  # Öğrenci ders ücreti (finans hesaplaması için)
     season_id: Optional[str] = None
     status: str = "active"
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -195,6 +196,7 @@ class StudentCourseCreate(BaseModel):
     branch_id: str
     lesson_type_id: str
     price: float
+    student_price: Optional[float] = None
     season_id: Optional[str] = None
 
 class Lesson(BaseModel):
@@ -234,14 +236,17 @@ class PlannedLessonCreate(BaseModel):
 class Payment(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    payment_type: str  # "student_payment", "teacher_payment", "expense"
+    payment_type: str  # "student_payment", "teacher_payment", "expense", "transfer_out", "transfer_in"
     amount: float
     date: str
     student_id: Optional[str] = None
     teacher_id: Optional[str] = None
+    branch_id: Optional[str] = None  # Branş bazlı ödeme takibi
+    cashbox_id: Optional[str] = None  # Hangi kasaya/kasadan
     bank_account_id: Optional[str] = None
     description: Optional[str] = None
-    expense_category: Optional[str] = None  # "Kira", "Reklam", etc.
+    expense_category: Optional[str] = None  # "Kira", "Reklam", "Maaş", "Ofis", "Sermaye", "Transfer"
+    transfer_id: Optional[str] = None  # Kasalar arası transfer için
     season_id: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -251,10 +256,40 @@ class PaymentCreate(BaseModel):
     date: str
     student_id: Optional[str] = None
     teacher_id: Optional[str] = None
+    branch_id: Optional[str] = None
+    cashbox_id: Optional[str] = None
     bank_account_id: Optional[str] = None
     description: Optional[str] = None
     expense_category: Optional[str] = None
     season_id: Optional[str] = None
+
+# ============= CASHBOX MODELS =============
+
+class BranchCashbox(BaseModel):
+    """Branş bazlı kasa modeli"""
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    branch_id: str  # Hangi branşın kasası
+    name: str  # "Türkçe Kasası", "Matematik Kasası" vb.
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class CashboxTransfer(BaseModel):
+    """Kasalar arası transfer modeli"""
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    from_cashbox_id: str  # Çıkış kasası
+    to_cashbox_id: str  # Giriş kasası
+    amount: float
+    description: Optional[str] = None
+    date: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class CashboxTransferCreate(BaseModel):
+    from_cashbox_id: str
+    to_cashbox_id: str
+    amount: float
+    description: Optional[str] = None
+    date: str
 
 # ============= CAMP MODELS =============
 
@@ -1029,6 +1064,7 @@ async def delete_planned_lesson(planned_id: str, current_user: User = Depends(ge
 async def get_payments(
     month: Optional[str] = None,  # Format: "2025-01"
     bank_account_id: Optional[str] = None,
+    cashbox_id: Optional[str] = None,
     current_user: User = Depends(get_current_user)
 ):
     if current_user.user_type == "admin":
@@ -1042,6 +1078,10 @@ async def get_payments(
         if bank_account_id:
             query["bank_account_id"] = bank_account_id
         
+        # Kasa filtresi
+        if cashbox_id:
+            query["cashbox_id"] = cashbox_id
+        
         payments = await db.payments.find(query, {"_id": 0}).to_list(1000)
     else:
         # Teachers only see their payments
@@ -1050,6 +1090,8 @@ async def get_payments(
             query["date"] = {"$regex": f"^{month}"}
         if bank_account_id:
             query["bank_account_id"] = bank_account_id
+        if cashbox_id:
+            query["cashbox_id"] = cashbox_id
         
         payments = await db.payments.find(query, {"_id": 0}).to_list(1000)
     
@@ -1063,9 +1105,9 @@ async def create_payment(payment_data: PaymentCreate, current_user: User = Depen
     if current_user.user_type != "admin":
         raise HTTPException(status_code=403, detail="Only admins can create payments")
     
-    # Banka hesabı zorunlu kontrolü
-    if not payment_data.bank_account_id:
-        raise HTTPException(status_code=400, detail="Banka hesabı seçimi zorunludur")
+    # Kasa zorunlu kontrolü
+    if not payment_data.cashbox_id:
+        raise HTTPException(status_code=400, detail="Kasa seçimi zorunludur")
     
     payment = Payment(**payment_data.model_dump())
     doc = payment.model_dump()
@@ -2235,6 +2277,588 @@ async def get_teacher_youtube_earnings(teacher_id: str, current_user: User = Dep
         "total_youtube_earnings": total_earnings,
         "record_count": len(records),
         "records": records
+    }
+
+# ============= CASHBOX ROUTES =============
+
+@api_router.get("/cashboxes")
+async def get_cashboxes(current_user: User = Depends(get_current_user)):
+    """Tüm kasaları bakiyeleriyle birlikte getir"""
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can view cashboxes")
+    
+    cashboxes = await db.cashboxes.find({}, {"_id": 0}).to_list(100)
+    branches = await db.branches.find({}, {"_id": 0}).to_list(100)
+    branch_map = {b["id"]: b for b in branches}
+    
+    result = []
+    total_balance = 0
+    
+    for cashbox in cashboxes:
+        # Kasaya giren ödemeler (student_payment + transfer_in)
+        income = await db.payments.find({
+            "cashbox_id": cashbox["id"],
+            "payment_type": {"$in": ["student_payment", "transfer_in"]}
+        }, {"_id": 0, "amount": 1}).to_list(10000)
+        total_income = sum([p["amount"] for p in income])
+        
+        # Kasadan çıkan ödemeler (teacher_payment, expense, transfer_out)
+        expense = await db.payments.find({
+            "cashbox_id": cashbox["id"],
+            "payment_type": {"$in": ["teacher_payment", "expense", "transfer_out"]}
+        }, {"_id": 0, "amount": 1}).to_list(10000)
+        total_expense = sum([p["amount"] for p in expense])
+        
+        balance = total_income - total_expense
+        total_balance += balance
+        
+        branch = branch_map.get(cashbox.get("branch_id"), {})
+        
+        result.append({
+            **cashbox,
+            "branch_name": branch.get("name", "Bilinmiyor"),
+            "total_income": total_income,
+            "total_expense": total_expense,
+            "balance": balance
+        })
+    
+    return {
+        "cashboxes": result,
+        "total_balance": total_balance
+    }
+
+@api_router.get("/cashboxes/{cashbox_id}")
+async def get_cashbox(cashbox_id: str, current_user: User = Depends(get_current_user)):
+    """Tek kasa detayı ve işlem geçmişi"""
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can view cashbox")
+    
+    cashbox = await db.cashboxes.find_one({"id": cashbox_id}, {"_id": 0})
+    if not cashbox:
+        raise HTTPException(status_code=404, detail="Kasa bulunamadı")
+    
+    # Kasa işlemleri
+    transactions = await db.payments.find({
+        "cashbox_id": cashbox_id
+    }, {"_id": 0}).to_list(10000)
+    
+    # İşlemleri tarih sırasına göre sırala
+    transactions.sort(key=lambda x: x.get("date", ""), reverse=True)
+    
+    # Öğrenci ve öğretmen bilgilerini ekle
+    students = await db.students.find({}, {"_id": 0}).to_list(10000)
+    teachers = await db.teachers.find({}, {"_id": 0}).to_list(1000)
+    student_map = {s["id"]: s for s in students}
+    teacher_map = {t["id"]: t for t in teachers}
+    
+    for tx in transactions:
+        if tx.get("student_id"):
+            student = student_map.get(tx["student_id"], {})
+            tx["student_name"] = student.get("name", "Bilinmiyor")
+        if tx.get("teacher_id"):
+            teacher = teacher_map.get(tx["teacher_id"], {})
+            tx["teacher_name"] = teacher.get("name", "Bilinmiyor")
+    
+    # Bakiye hesapla
+    income = sum([t["amount"] for t in transactions if t["payment_type"] in ["student_payment", "transfer_in"]])
+    expense = sum([t["amount"] for t in transactions if t["payment_type"] in ["teacher_payment", "expense", "transfer_out"]])
+    
+    return {
+        **cashbox,
+        "transactions": transactions,
+        "total_income": income,
+        "total_expense": expense,
+        "balance": income - expense
+    }
+
+@api_router.post("/cashboxes")
+async def create_cashbox(branch_id: str, name: str, current_user: User = Depends(get_current_user)):
+    """Yeni kasa oluştur"""
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can create cashboxes")
+    
+    # Bu branş için zaten kasa var mı kontrol et
+    existing = await db.cashboxes.find_one({"branch_id": branch_id})
+    if existing:
+        raise HTTPException(status_code=400, detail="Bu branş için zaten bir kasa mevcut")
+    
+    cashbox = BranchCashbox(branch_id=branch_id, name=name)
+    doc = cashbox.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.cashboxes.insert_one(doc)
+    
+    return cashbox
+
+@api_router.post("/cashbox-transfers")
+async def create_cashbox_transfer(transfer_data: CashboxTransferCreate, current_user: User = Depends(get_current_user)):
+    """Kasalar arası transfer yap"""
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can transfer between cashboxes")
+    
+    # Kasaları kontrol et
+    from_cashbox = await db.cashboxes.find_one({"id": transfer_data.from_cashbox_id}, {"_id": 0})
+    to_cashbox = await db.cashboxes.find_one({"id": transfer_data.to_cashbox_id}, {"_id": 0})
+    
+    if not from_cashbox:
+        raise HTTPException(status_code=404, detail="Çıkış kasası bulunamadı")
+    if not to_cashbox:
+        raise HTTPException(status_code=404, detail="Giriş kasası bulunamadı")
+    
+    # Transfer kaydı oluştur
+    transfer = CashboxTransfer(**transfer_data.model_dump())
+    transfer_doc = transfer.model_dump()
+    transfer_doc['created_at'] = transfer_doc['created_at'].isoformat()
+    await db.cashbox_transfers.insert_one(transfer_doc)
+    
+    # Çıkış kasasından para çık
+    out_payment = Payment(
+        payment_type="transfer_out",
+        amount=transfer_data.amount,
+        date=transfer_data.date,
+        cashbox_id=transfer_data.from_cashbox_id,
+        expense_category="Transfer",
+        description=f"Transfer: {from_cashbox['name']} -> {to_cashbox['name']}",
+        transfer_id=transfer.id
+    )
+    out_doc = out_payment.model_dump()
+    out_doc['created_at'] = out_doc['created_at'].isoformat()
+    await db.payments.insert_one(out_doc)
+    
+    # Giriş kasasına para gir
+    in_payment = Payment(
+        payment_type="transfer_in",
+        amount=transfer_data.amount,
+        date=transfer_data.date,
+        cashbox_id=transfer_data.to_cashbox_id,
+        expense_category="Transfer",
+        description=f"Transfer: {from_cashbox['name']} -> {to_cashbox['name']}",
+        transfer_id=transfer.id
+    )
+    in_doc = in_payment.model_dump()
+    in_doc['created_at'] = in_doc['created_at'].isoformat()
+    await db.payments.insert_one(in_doc)
+    
+    return {
+        "message": "Transfer başarılı",
+        "transfer": transfer,
+        "from_cashbox": from_cashbox["name"],
+        "to_cashbox": to_cashbox["name"],
+        "amount": transfer_data.amount
+    }
+
+# ============= TEACHER INCOME DETAIL ROUTES =============
+
+@api_router.get("/teachers/{teacher_id}/lesson-income-detail")
+async def get_teacher_lesson_income_detail(teacher_id: str, month: Optional[str] = None, current_user: User = Depends(get_current_user)):
+    """
+    Öğretmenin ders kazanç detaylarını grup bazlı getir.
+    Her grup için: branş, grup adı, ders tipi, ders sayısı, birim ücret, toplam kazanç
+    """
+    # Erişim kontrolü
+    if current_user.user_type == "teacher" and current_user.teacher_id != teacher_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Öğretmenin ders verdiği kursları bul
+    courses = await db.student_courses.find({
+        "teacher_id": teacher_id,
+        "status": "active"
+    }, {"_id": 0}).to_list(10000)
+    course_ids = [c["id"] for c in courses]
+    course_map = {c["id"]: c for c in courses}
+    
+    # Dersleri getir
+    lesson_filter = {"student_course_id": {"$in": course_ids}}
+    if month:
+        lesson_filter["date"] = {"$regex": f"^{month}"}
+    
+    lessons = await db.lessons.find(lesson_filter, {"_id": 0}).to_list(10000)
+    
+    # Referans verileri al
+    branches = await db.branches.find({}, {"_id": 0}).to_list(100)
+    groups = await db.student_groups.find({}, {"_id": 0}).to_list(1000)
+    students = await db.students.find({}, {"_id": 0}).to_list(10000)
+    lesson_types = await db.lesson_types.find({}, {"_id": 0}).to_list(100)
+    
+    branch_map = {b["id"]: b for b in branches}
+    group_map = {g["id"]: g for g in groups}
+    student_map = {s["id"]: s for s in students}
+    lesson_type_map = {lt["id"]: lt for lt in lesson_types}
+    
+    # Grup bazlı kazanç hesapla
+    # Key: (group_id veya student_id, branch_id)
+    income_by_source = {}
+    
+    for lesson in lessons:
+        course = course_map.get(lesson["student_course_id"])
+        if not course:
+            continue
+        
+        branch_id = course["branch_id"]
+        group_id = lesson.get("group_id")
+        teacher_rate = lesson.get("teacher_rate") or 0
+        
+        # Sadece teacher_rate > 0 olan dersleri say (grup derslerinde sadece ilk öğrenci)
+        if teacher_rate <= 0:
+            continue
+        
+        if group_id:
+            key = f"group_{group_id}_{branch_id}"
+            group = group_map.get(group_id, {})
+            source_name = group.get("name", "Bilinmeyen Grup")
+            source_type = "Grup Dersi"
+            group_size = len(group.get("student_ids", []))
+        else:
+            student = student_map.get(course["student_id"], {})
+            key = f"student_{course['student_id']}_{branch_id}"
+            source_name = student.get("name", "Bilinmeyen Öğrenci")
+            source_type = "Birebir Ders"
+            group_size = 1
+        
+        if key not in income_by_source:
+            branch = branch_map.get(branch_id, {})
+            lesson_type = lesson_type_map.get(course.get("lesson_type_id"), {})
+            income_by_source[key] = {
+                "source_name": source_name,
+                "source_type": source_type,
+                "branch_name": branch.get("name", "Bilinmiyor"),
+                "branch_id": branch_id,
+                "lesson_type": lesson_type.get("name", "Bilinmiyor"),
+                "group_size": group_size,
+                "total_lessons": 0,
+                "unit_price": teacher_rate,
+                "total_earning": 0,
+                "dates": []
+            }
+        
+        income_by_source[key]["total_lessons"] += lesson["number_of_lessons"]
+        income_by_source[key]["total_earning"] += teacher_rate * lesson["number_of_lessons"]
+        income_by_source[key]["dates"].append(lesson["date"])
+    
+    # Sonuçları listeye çevir
+    result = list(income_by_source.values())
+    result.sort(key=lambda x: x["total_earning"], reverse=True)
+    
+    total_earning = sum([r["total_earning"] for r in result])
+    total_lessons = sum([r["total_lessons"] for r in result])
+    
+    return {
+        "teacher_id": teacher_id,
+        "month": month,
+        "total_earning": total_earning,
+        "total_lessons": total_lessons,
+        "details": result
+    }
+
+@api_router.get("/teachers/{teacher_id}/camp-income-detail")
+async def get_teacher_camp_income_detail(teacher_id: str, month: Optional[str] = None, current_user: User = Depends(get_current_user)):
+    """Öğretmenin kamp kazanç detaylarını getir"""
+    if current_user.user_type == "teacher" and current_user.teacher_id != teacher_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Öğretmenin kamplarını bul
+    camps = await db.camps.find({"teacher_id": teacher_id}, {"_id": 0}).to_list(1000)
+    
+    result = []
+    total_earning = 0
+    
+    for camp in camps:
+        # Kamp tarihini kontrol et (ay filtresi)
+        camp_date = camp.get("created_at", "")
+        if isinstance(camp_date, str) and month:
+            if not camp_date.startswith(month):
+                continue
+        
+        # Kampa kayıtlı kesin kayıtlı öğrenci sayısı
+        students = await db.camp_students.find({
+            "camp_id": camp["id"],
+            "registration_status": "kesin_kayit"
+        }, {"_id": 0}).to_list(1000)
+        
+        student_count = len(students)
+        per_student_fee = camp.get("per_student_teacher_fee", 0)
+        camp_earning = student_count * per_student_fee
+        total_earning += camp_earning
+        
+        result.append({
+            "camp_id": camp["id"],
+            "camp_name": camp["name"],
+            "class_level": camp["class_level"],
+            "student_count": student_count,
+            "per_student_fee": per_student_fee,
+            "total_earning": camp_earning,
+            "status": camp.get("status", "active"),
+            "created_at": camp_date
+        })
+    
+    return {
+        "teacher_id": teacher_id,
+        "month": month,
+        "total_earning": total_earning,
+        "camp_count": len(result),
+        "details": result
+    }
+
+@api_router.get("/teachers/{teacher_id}/youtube-income-detail")
+async def get_teacher_youtube_income_detail(teacher_id: str, month: Optional[str] = None, current_user: User = Depends(get_current_user)):
+    """Öğretmenin YouTube kazanç detaylarını getir"""
+    if current_user.user_type == "teacher" and current_user.teacher_id != teacher_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Filtre oluştur
+    filter_query = {
+        "teacher_id": teacher_id,
+        "status": YouTubeContentStatus.ACTIVE
+    }
+    
+    records = await db.youtube_contents.find(filter_query, {"_id": 0}).to_list(1000)
+    
+    # Ay filtresi
+    if month:
+        records = [r for r in records if r.get("date", "").startswith(month)]
+    
+    total_earning = sum([r["amount"] for r in records])
+    
+    return {
+        "teacher_id": teacher_id,
+        "month": month,
+        "total_earning": total_earning,
+        "record_count": len(records),
+        "details": records
+    }
+
+# ============= STUDENT FINANCE ROUTES =============
+
+@api_router.get("/students/{student_id}/finance-detail")
+async def get_student_finance_detail(student_id: str, current_user: User = Depends(get_current_user)):
+    """
+    Öğrencinin branş bazlı finans detaylarını getir.
+    Her branş için: girilen ders sayısı, ödenen tutar, kullanılan tutar, kalan bakiye, kalan ders
+    """
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can view student finance")
+    
+    student = await db.students.find_one({"id": student_id}, {"_id": 0})
+    if not student:
+        raise HTTPException(status_code=404, detail="Öğrenci bulunamadı")
+    
+    # Öğrencinin kursları
+    courses = await db.student_courses.find({
+        "student_id": student_id,
+        "status": "active"
+    }, {"_id": 0}).to_list(100)
+    
+    # Referans verileri
+    branches = await db.branches.find({}, {"_id": 0}).to_list(100)
+    teachers = await db.teachers.find({}, {"_id": 0}).to_list(1000)
+    branch_map = {b["id"]: b for b in branches}
+    teacher_map = {t["id"]: t for t in teachers}
+    
+    result = []
+    
+    for course in courses:
+        branch_id = course["branch_id"]
+        branch = branch_map.get(branch_id, {})
+        teacher = teacher_map.get(course.get("teacher_id"), {})
+        
+        # Bu branştaki dersler
+        lessons = await db.lessons.find({
+            "student_course_id": course["id"]
+        }, {"_id": 0}).to_list(10000)
+        
+        total_lessons = sum([l["number_of_lessons"] for l in lessons])
+        
+        # Öğrenci ders ücreti
+        student_price = course.get("student_price") or course.get("price") or 0
+        
+        # Kullanılan tutar
+        used_amount = total_lessons * student_price
+        
+        # Bu branş için ödemeler
+        payments = await db.payments.find({
+            "student_id": student_id,
+            "branch_id": branch_id,
+            "payment_type": "student_payment"
+        }, {"_id": 0}).to_list(10000)
+        
+        total_paid = sum([p["amount"] for p in payments])
+        
+        # Kalan bakiye ve ders
+        remaining_balance = total_paid - used_amount
+        remaining_lessons = remaining_balance / student_price if student_price > 0 else 0
+        
+        result.append({
+            "branch_id": branch_id,
+            "branch_name": branch.get("name", "Bilinmiyor"),
+            "teacher_id": course.get("teacher_id"),
+            "teacher_name": teacher.get("name", "Bilinmiyor"),
+            "student_price": student_price,
+            "total_lessons": total_lessons,
+            "used_amount": used_amount,
+            "total_paid": total_paid,
+            "remaining_balance": remaining_balance,
+            "remaining_lessons": round(remaining_lessons, 1),
+            "status": "alacakli" if remaining_balance >= 0 else "borclu"
+        })
+    
+    # Genel özet
+    total_paid_all = sum([r["total_paid"] for r in result])
+    total_used_all = sum([r["used_amount"] for r in result])
+    
+    return {
+        "student_id": student_id,
+        "student_name": student["name"],
+        "by_branch": result,
+        "summary": {
+            "total_paid": total_paid_all,
+            "total_used": total_used_all,
+            "total_balance": total_paid_all - total_used_all
+        }
+    }
+
+@api_router.get("/students/by-branch/{branch_id}")
+async def get_students_by_branch(branch_id: str, current_user: User = Depends(get_current_user)):
+    """
+    Branş bazlı öğrenci listesi.
+    Her öğrenci için: ad, veli, ders sayısı, ödeme, kalan ders, durum
+    """
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can view students by branch")
+    
+    # Bu branştan ders alan öğrencileri bul
+    courses = await db.student_courses.find({
+        "branch_id": branch_id,
+        "status": "active"
+    }, {"_id": 0}).to_list(10000)
+    
+    student_ids = list(set([c["student_id"] for c in courses]))
+    
+    # Öğrenci bilgileri
+    students = await db.students.find({
+        "id": {"$in": student_ids},
+        "status": "active"
+    }, {"_id": 0}).to_list(10000)
+    
+    # Öğretmen bilgileri
+    teachers = await db.teachers.find({}, {"_id": 0}).to_list(1000)
+    teacher_map = {t["id"]: t for t in teachers}
+    
+    # Branş bilgisi
+    branch = await db.branches.find_one({"id": branch_id}, {"_id": 0})
+    
+    result = []
+    
+    for student in students:
+        # Bu öğrencinin bu branştaki kursu
+        student_courses = [c for c in courses if c["student_id"] == student["id"]]
+        if not student_courses:
+            continue
+        
+        course = student_courses[0]
+        teacher = teacher_map.get(course.get("teacher_id"), {})
+        
+        # Dersler
+        lessons = await db.lessons.find({
+            "student_course_id": course["id"]
+        }, {"_id": 0}).to_list(10000)
+        total_lessons = sum([l["number_of_lessons"] for l in lessons])
+        
+        # Öğrenci ders ücreti
+        student_price = course.get("student_price") or course.get("price") or 0
+        used_amount = total_lessons * student_price
+        
+        # Ödemeler
+        payments = await db.payments.find({
+            "student_id": student["id"],
+            "branch_id": branch_id,
+            "payment_type": "student_payment"
+        }, {"_id": 0}).to_list(10000)
+        total_paid = sum([p["amount"] for p in payments])
+        
+        remaining_balance = total_paid - used_amount
+        remaining_lessons = remaining_balance / student_price if student_price > 0 else 0
+        
+        result.append({
+            "student_id": student["id"],
+            "student_name": student["name"],
+            "parent_name": student["parent_name"],
+            "phone": student["phone"],
+            "level": student["level"],
+            "teacher_name": teacher.get("name", "Bilinmiyor"),
+            "student_price": student_price,
+            "total_lessons": total_lessons,
+            "total_paid": total_paid,
+            "used_amount": used_amount,
+            "remaining_balance": remaining_balance,
+            "remaining_lessons": round(remaining_lessons, 1),
+            "status": "alacakli" if remaining_balance >= 0 else "borclu"
+        })
+    
+    # Sırala: borçlular önce
+    result.sort(key=lambda x: (x["status"] != "borclu", -abs(x["remaining_balance"])))
+    
+    return {
+        "branch_id": branch_id,
+        "branch_name": branch.get("name", "Bilinmiyor") if branch else "Bilinmiyor",
+        "student_count": len(result),
+        "students": result,
+        "summary": {
+            "total_students": len(result),
+            "total_paid": sum([r["total_paid"] for r in result]),
+            "total_used": sum([r["used_amount"] for r in result]),
+            "total_balance": sum([r["remaining_balance"] for r in result])
+        }
+    }
+
+# ============= MIGRATION: INIT CASHBOXES =============
+
+@api_router.post("/init-cashboxes")
+async def init_cashboxes(current_user: User = Depends(get_current_user)):
+    """
+    Branşlar için kasaları oluştur ve mevcut ödemeleri Türkçe kasasına ata
+    """
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can init cashboxes")
+    
+    # Branşları al
+    branches = await db.branches.find({}, {"_id": 0}).to_list(100)
+    
+    created_cashboxes = []
+    turkce_cashbox_id = None
+    
+    for branch in branches:
+        # Bu branş için kasa var mı kontrol et
+        existing = await db.cashboxes.find_one({"branch_id": branch["id"]})
+        if not existing:
+            cashbox = BranchCashbox(
+                branch_id=branch["id"],
+                name=f"{branch['name']} Kasası"
+            )
+            doc = cashbox.model_dump()
+            doc['created_at'] = doc['created_at'].isoformat()
+            await db.cashboxes.insert_one(doc)
+            created_cashboxes.append(cashbox.name)
+            
+            # Türkçe kasasının ID'sini sakla
+            if "türkçe" in branch["name"].lower():
+                turkce_cashbox_id = cashbox.id
+        else:
+            if "türkçe" in branch["name"].lower():
+                turkce_cashbox_id = existing["id"]
+    
+    # Mevcut ödemeleri Türkçe kasasına ata (cashbox_id olmayanları)
+    migrated_count = 0
+    if turkce_cashbox_id:
+        result = await db.payments.update_many(
+            {"cashbox_id": None},
+            {"$set": {"cashbox_id": turkce_cashbox_id}}
+        )
+        migrated_count = result.modified_count
+    
+    return {
+        "message": "Kasalar oluşturuldu",
+        "created_cashboxes": created_cashboxes,
+        "migrated_payments": migrated_count,
+        "turkce_cashbox_id": turkce_cashbox_id
     }
 
 # ============= INCLUDE ROUTER =============

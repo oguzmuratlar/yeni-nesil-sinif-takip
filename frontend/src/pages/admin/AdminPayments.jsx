@@ -24,12 +24,14 @@ const AdminPayments = () => {
   const [payments, setPayments] = useState([]);
   const [students, setStudents] = useState([]);
   const [teachers, setTeachers] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [cashboxes, setCashboxes] = useState([]);
   const [bankAccounts, setBankAccounts] = useState([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogType, setDialogType] = useState('income');
   const [editingPayment, setEditingPayment] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState('');
-  const [selectedBankAccount, setSelectedBankAccount] = useState('all');
+  const [selectedCashbox, setSelectedCashbox] = useState('all');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [paymentToDelete, setPaymentToDelete] = useState(null);
   const [newPayment, setNewPayment] = useState({
@@ -37,6 +39,8 @@ const AdminPayments = () => {
     date: new Date().toISOString().split('T')[0],
     student_id: '',
     teacher_id: '',
+    branch_id: '',
+    cashbox_id: '',
     bank_account_id: '',
     description: '',
     expense_category: ''
@@ -48,17 +52,21 @@ const AdminPayments = () => {
 
   useEffect(() => {
     fetchPayments();
-  }, [selectedMonth, selectedBankAccount]);
+  }, [selectedMonth, selectedCashbox]);
 
   const fetchReferenceData = async () => {
     try {
-      const [studentsRes, teachersRes, banksRes] = await Promise.all([
+      const [studentsRes, teachersRes, branchesRes, cashboxesRes, banksRes] = await Promise.all([
         apiClient.get('/students'),
         apiClient.get('/teachers'),
+        apiClient.get('/branches'),
+        apiClient.get('/cashboxes'),
         apiClient.get('/bank-accounts')
       ]);
       setStudents(studentsRes.data);
       setTeachers(teachersRes.data);
+      setBranches(branchesRes.data);
+      setCashboxes(cashboxesRes.data?.cashboxes || []);
       setBankAccounts(banksRes.data);
     } catch (error) {
       toast.error('Referans veriler yüklenemedi');
@@ -71,8 +79,8 @@ const AdminPayments = () => {
       if (selectedMonth) {
         url += `month=${selectedMonth}&`;
       }
-      if (selectedBankAccount && selectedBankAccount !== 'all') {
-        url += `bank_account_id=${selectedBankAccount}`;
+      if (selectedCashbox && selectedCashbox !== 'all') {
+        url += `cashbox_id=${selectedCashbox}`;
       }
       const response = await apiClient.get(url);
       setPayments(response.data);
@@ -84,9 +92,9 @@ const AdminPayments = () => {
   const handleSubmitPayment = async (e) => {
     e.preventDefault();
     
-    // Banka hesabı zorunlu kontrolü
-    if (!newPayment.bank_account_id) {
-      toast.error('Banka hesabı seçimi zorunludur');
+    // Kasa zorunlu kontrolü
+    if (!newPayment.cashbox_id) {
+      toast.error('Kasa seçimi zorunludur');
       return;
     }
     
@@ -94,7 +102,8 @@ const AdminPayments = () => {
       const paymentData = {
         ...newPayment,
         amount: parseFloat(newPayment.amount),
-        payment_type: dialogType === 'income' ? 'student_payment' : 'expense'
+        payment_type: dialogType === 'income' ? 'student_payment' : 
+                      newPayment.expense_category === 'Maaş' ? 'teacher_payment' : 'expense'
       };
       
       if (editingPayment) {
@@ -136,6 +145,8 @@ const AdminPayments = () => {
         date: payment.date,
         student_id: payment.student_id || '',
         teacher_id: payment.teacher_id || '',
+        branch_id: payment.branch_id || '',
+        cashbox_id: payment.cashbox_id || '',
         bank_account_id: payment.bank_account_id || '',
         description: payment.description || '',
         expense_category: payment.expense_category || ''
@@ -146,6 +157,8 @@ const AdminPayments = () => {
         date: new Date().toISOString().split('T')[0],
         student_id: '',
         teacher_id: '',
+        branch_id: '',
+        cashbox_id: '',
         bank_account_id: '',
         description: '',
         expense_category: ''
@@ -163,6 +176,8 @@ const AdminPayments = () => {
       date: new Date().toISOString().split('T')[0],
       student_id: '',
       teacher_id: '',
+      branch_id: '',
+      cashbox_id: '',
       bank_account_id: '',
       description: '',
       expense_category: ''
@@ -178,8 +193,10 @@ const AdminPayments = () => {
   const renderPaymentItem = (payment, bgClass) => {
     const student = students.find(s => s.id === payment.student_id);
     const teacher = teachers.find(t => t.id === payment.teacher_id);
+    const branch = branches.find(b => b.id === payment.branch_id);
+    const cashbox = cashboxes.find(c => c.id === payment.cashbox_id);
     const bankAccount = bankAccounts.find(b => b.id === payment.bank_account_id);
-    const isIncome = payment.payment_type === 'student_payment';
+    const isIncome = payment.payment_type === 'student_payment' || payment.payment_type === 'transfer_in';
     
     return (
       <div key={payment.id} className={`flex items-center justify-between p-3 lg:p-4 ${bgClass} rounded-lg`}>
@@ -188,12 +205,19 @@ const AdminPayments = () => {
           <p className="text-xs lg:text-sm text-slate-600 truncate">
             {payment.payment_type === 'student_payment' ? `Öğrenci: ${student?.name || 'Bilinmiyor'}` : 
              payment.payment_type === 'teacher_payment' ? `Öğretmen: ${teacher?.name || 'Bilinmiyor'}` : 
+             payment.payment_type === 'transfer_in' ? 'Transfer Girişi' :
+             payment.payment_type === 'transfer_out' ? 'Transfer Çıkışı' :
              payment.expense_category || 'Gider'}
           </p>
-          {bankAccount && (
-            <p className="text-xs text-slate-500">{bankAccount.bank_name}</p>
-          )}
-          {payment.description && <p className="text-xs text-slate-500 truncate">{payment.description}</p>}
+          <div className="flex gap-2 mt-1">
+            {cashbox && (
+              <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">{cashbox.name}</span>
+            )}
+            {branch && (
+              <span className="text-xs px-2 py-0.5 bg-slate-100 text-slate-600 rounded">{branch.name}</span>
+            )}
+          </div>
+          {payment.description && <p className="text-xs text-slate-500 truncate mt-1">{payment.description}</p>}
         </div>
         <div className="flex items-center gap-2">
           <p className={`font-bold text-sm lg:text-base whitespace-nowrap ${isIncome ? 'text-green-600' : 'text-red-600'}`}>
@@ -305,28 +329,28 @@ const AdminPayments = () => {
                 </SelectContent>
               </Select>
 
-              <Select value={selectedBankAccount} onValueChange={setSelectedBankAccount}>
-                <SelectTrigger className="h-11 lg:h-10 text-sm" data-testid="bank-filter">
-                  <SelectValue placeholder="Banka" />
+              <Select value={selectedCashbox} onValueChange={setSelectedCashbox}>
+                <SelectTrigger className="h-11 lg:h-10 text-sm" data-testid="cashbox-filter">
+                  <SelectValue placeholder="Kasa" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tüm Hesaplar</SelectItem>
-                  {bankAccounts.map(account => (
-                    <SelectItem key={account.id} value={account.id}>
-                      {account.bank_name}
+                  <SelectItem value="all">Tüm Kasalar</SelectItem>
+                  {cashboxes.map(cashbox => (
+                    <SelectItem key={cashbox.id} value={cashbox.id}>
+                      {cashbox.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            {(selectedMonth || selectedBankAccount !== 'all') && (
+            {(selectedMonth || selectedCashbox !== 'all') && (
               <Button 
                 variant="ghost" 
                 size="sm"
                 onClick={() => {
                   setSelectedMonth('');
-                  setSelectedBankAccount('all');
+                  setSelectedCashbox('all');
                 }}
                 className="h-10 text-slate-600"
               >
@@ -380,36 +404,81 @@ const AdminPayments = () => {
             </DialogHeader>
             <form onSubmit={handleSubmitPayment} className="space-y-4">
               {dialogType === 'income' && (
-                <div className="space-y-2">
-                  <Label htmlFor="student">Öğrenci</Label>
-                  <Select value={newPayment.student_id} onValueChange={(value) => setNewPayment({ ...newPayment, student_id: value })}>
-                    <SelectTrigger className="h-12">
-                      <SelectValue placeholder="Öğrenci seçin" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {students.map((student) => (
-                        <SelectItem key={student.id} value={student.id}>{student.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="student">Öğrenci *</Label>
+                    <Select value={newPayment.student_id} onValueChange={(value) => setNewPayment({ ...newPayment, student_id: value })}>
+                      <SelectTrigger className="h-12">
+                        <SelectValue placeholder="Öğrenci seçin" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {students.filter(s => s.status === 'active').map((student) => (
+                          <SelectItem key={student.id} value={student.id}>{student.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="branch">Branş *</Label>
+                    <Select value={newPayment.branch_id} onValueChange={(value) => setNewPayment({ ...newPayment, branch_id: value })}>
+                      <SelectTrigger className="h-12">
+                        <SelectValue placeholder="Branş seçin" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {branches.map((branch) => (
+                          <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="teacher">Öğretmen (Opsiyonel)</Label>
+                    <Select value={newPayment.teacher_id} onValueChange={(value) => setNewPayment({ ...newPayment, teacher_id: value })}>
+                      <SelectTrigger className="h-12">
+                        <SelectValue placeholder="Öğretmen seçin" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {teachers.filter(t => t.status === 'active').map((teacher) => (
+                          <SelectItem key={teacher.id} value={teacher.id}>{teacher.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
               )}
               {dialogType === 'expense' && (
                 <>
                   <div className="space-y-2">
-                    <Label htmlFor="expense_category">Gider Kategorisi</Label>
-                    <Select value={newPayment.expense_category} onValueChange={(value) => setNewPayment({ ...newPayment, expense_category: value })}>
+                    <Label htmlFor="expense_category">Gider Kategorisi *</Label>
+                    <Select value={newPayment.expense_category} onValueChange={(value) => setNewPayment({ ...newPayment, expense_category: value, teacher_id: value === 'Maaş' ? newPayment.teacher_id : '' })}>
                       <SelectTrigger className="h-12">
                         <SelectValue placeholder="Kategori seçin" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="Maaş">Maaş (Öğretmen Ödemesi)</SelectItem>
                         <SelectItem value="Kira">Kira</SelectItem>
                         <SelectItem value="Reklam">Reklam</SelectItem>
-                        <SelectItem value="Genel Gider">Genel Gider</SelectItem>
+                        <SelectItem value="Ofis">Ofis Gideri</SelectItem>
+                        <SelectItem value="Sermaye">Sermaye Çıkışı</SelectItem>
                         <SelectItem value="Diğer">Diğer</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
+                  {newPayment.expense_category === 'Maaş' && (
+                    <div className="space-y-2">
+                      <Label htmlFor="teacher">Öğretmen *</Label>
+                      <Select value={newPayment.teacher_id} onValueChange={(value) => setNewPayment({ ...newPayment, teacher_id: value })}>
+                        <SelectTrigger className="h-12">
+                          <SelectValue placeholder="Öğretmen seçin" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {teachers.filter(t => t.status === 'active').map((teacher) => (
+                            <SelectItem key={teacher.id} value={teacher.id}>{teacher.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <Label htmlFor="description">Açıklama</Label>
                     <Input
@@ -445,13 +514,32 @@ const AdminPayments = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="bank_account">Banka Hesabı *</Label>
+                <Label htmlFor="cashbox">Kasa *</Label>
+                <Select 
+                  value={newPayment.cashbox_id} 
+                  onValueChange={(value) => setNewPayment({ ...newPayment, cashbox_id: value })}
+                >
+                  <SelectTrigger className="h-12">
+                    <SelectValue placeholder="Kasa seçin (zorunlu)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {cashboxes.map((cashbox) => (
+                      <SelectItem key={cashbox.id} value={cashbox.id}>
+                        {cashbox.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-slate-500">Kasa seçimi zorunludur</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="bank_account">Banka Hesabı (Opsiyonel)</Label>
                 <Select 
                   value={newPayment.bank_account_id} 
                   onValueChange={(value) => setNewPayment({ ...newPayment, bank_account_id: value })}
                 >
                   <SelectTrigger className="h-12">
-                    <SelectValue placeholder="Banka hesabı seçin (zorunlu)" />
+                    <SelectValue placeholder="Banka hesabı seçin" />
                   </SelectTrigger>
                   <SelectContent>
                     {bankAccounts.map((account) => (
@@ -461,7 +549,6 @@ const AdminPayments = () => {
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-slate-500">Banka hesabı seçimi zorunludur</p>
               </div>
               <div className="grid grid-cols-2 gap-3 pt-2">
                 <Button type="button" variant="outline" onClick={closeDialog} className="h-12">

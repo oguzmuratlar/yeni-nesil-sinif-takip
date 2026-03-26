@@ -35,6 +35,8 @@ import AdminGroupLesson from "./pages/admin/AdminGroupLesson";
 import AdminCamps from "./pages/admin/AdminCamps";
 import AdminCampStudents from "./pages/admin/AdminCampStudents";
 import AdminYoutube from "./pages/admin/AdminYoutube";
+import AdminCashboxes from "./pages/admin/AdminCashboxes";
+import AdminStudentsByBranch from "./pages/admin/AdminStudentsByBranch";
 
 // Teacher Pages
 import TeacherStudents from "./pages/teacher/TeacherStudents";
@@ -46,6 +48,9 @@ import TeacherGroupLessons from "./pages/teacher/TeacherGroupLessons";
 import TeacherGroupPlannedLessons from "./pages/teacher/TeacherGroupPlannedLessons";
 import TeacherCamps from "./pages/teacher/TeacherCamps";
 import TeacherYoutube from "./pages/teacher/TeacherYoutube";
+import TeacherLessonIncomeDetail from "./pages/teacher/TeacherLessonIncomeDetail";
+import TeacherCampIncomeDetail from "./pages/teacher/TeacherCampIncomeDetail";
+import TeacherYoutubeIncomeDetail from "./pages/teacher/TeacherYoutubeIncomeDetail";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -199,6 +204,31 @@ function App() {
                 <AdminYoutube />
               </ProtectedRoute>
             } />
+            <Route path="/admin/cashboxes" element={
+              <ProtectedRoute requiredRole="admin">
+                <AdminCashboxes />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/students/branch/:branchId" element={
+              <ProtectedRoute requiredRole="admin">
+                <AdminStudentsByBranch />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/teachers/:id/lesson-income" element={
+              <ProtectedRoute requiredRole="admin">
+                <TeacherLessonIncomeDetail />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/teachers/:id/camp-income" element={
+              <ProtectedRoute requiredRole="admin">
+                <TeacherCampIncomeDetail />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/teachers/:id/youtube-income" element={
+              <ProtectedRoute requiredRole="admin">
+                <TeacherYoutubeIncomeDetail />
+              </ProtectedRoute>
+            } />
 
             {/* Teacher Routes */}
             <Route path="/teacher/dashboard" element={
@@ -249,6 +279,21 @@ function App() {
             <Route path="/teacher/youtube" element={
               <ProtectedRoute requiredRole="teacher">
                 <TeacherYoutube />
+              </ProtectedRoute>
+            } />
+            <Route path="/teacher/lesson-income" element={
+              <ProtectedRoute requiredRole="teacher">
+                <TeacherLessonIncomeDetail />
+              </ProtectedRoute>
+            } />
+            <Route path="/teacher/camp-income" element={
+              <ProtectedRoute requiredRole="teacher">
+                <TeacherCampIncomeDetail />
+              </ProtectedRoute>
+            } />
+            <Route path="/teacher/youtube-income" element={
+              <ProtectedRoute requiredRole="teacher">
+                <TeacherYoutubeIncomeDetail />
               </ProtectedRoute>
             } />
           </Routes>

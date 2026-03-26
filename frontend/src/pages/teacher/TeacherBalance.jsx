@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import TeacherLayout from '../../components/layouts/TeacherLayout';
 import apiClient from '../../api/axios';
 import { useAuth } from '../../contexts/AuthContext';
-import { Wallet, BookOpen, Tent, Youtube, Filter } from 'lucide-react';
+import { Wallet, BookOpen, Tent, Youtube, Filter, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 
 const TeacherBalance = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [balanceData, setBalanceData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState('all');
@@ -121,84 +123,56 @@ const TeacherBalance = () => {
           </div>
         </div>
 
-        {/* Kazanç Detayları - Mobile optimized */}
+        {/* Kazanç Detayları - Mobile optimized - Clickable */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 lg:gap-6 mb-6 lg:mb-10">
-          <div className="teacher-card p-4 lg:p-6">
-            <div className="flex items-center gap-2 lg:gap-3 mb-2 lg:mb-4">
-              <BookOpen size={20} className="lg:hidden text-blue-600" />
-              <BookOpen size={24} className="hidden lg:block text-blue-600" />
-              <h3 className="text-base lg:text-lg font-bold text-slate-800">Ders Kazancı</h3>
+          <div 
+            className="teacher-card p-4 lg:p-6 cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => navigate('/teacher/lesson-income')}
+          >
+            <div className="flex items-center justify-between mb-2 lg:mb-4">
+              <div className="flex items-center gap-2 lg:gap-3">
+                <BookOpen size={20} className="lg:hidden text-blue-600" />
+                <BookOpen size={24} className="hidden lg:block text-blue-600" />
+                <h3 className="text-base lg:text-lg font-bold text-slate-800">Ders Kazancı</h3>
+              </div>
+              <ChevronRight size={18} className="text-slate-400" />
             </div>
             <p className="text-xl lg:text-3xl font-bold text-blue-600">{balanceData.lesson_earnings?.toFixed(0) || '0'} ₺</p>
-            <p className="text-xs lg:text-sm text-slate-500 mt-1 lg:mt-2">Birebir ve grup derslerinden</p>
+            <p className="text-xs lg:text-sm text-slate-500 mt-1 lg:mt-2">Detay için tıklayın</p>
           </div>
           
-          <div className="teacher-card p-4 lg:p-6">
-            <div className="flex items-center gap-2 lg:gap-3 mb-2 lg:mb-4">
-              <Tent size={20} className="lg:hidden text-emerald-600" />
-              <Tent size={24} className="hidden lg:block text-emerald-600" />
-              <h3 className="text-base lg:text-lg font-bold text-slate-800">Kamp Kazancı</h3>
+          <div 
+            className="teacher-card p-4 lg:p-6 cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => navigate('/teacher/camp-income')}
+          >
+            <div className="flex items-center justify-between mb-2 lg:mb-4">
+              <div className="flex items-center gap-2 lg:gap-3">
+                <Tent size={20} className="lg:hidden text-emerald-600" />
+                <Tent size={24} className="hidden lg:block text-emerald-600" />
+                <h3 className="text-base lg:text-lg font-bold text-slate-800">Kamp Kazancı</h3>
+              </div>
+              <ChevronRight size={18} className="text-slate-400" />
             </div>
             <p className="text-xl lg:text-3xl font-bold text-emerald-600">{balanceData.camp_earnings?.toFixed(0) || '0'} ₺</p>
-            <p className="text-xs lg:text-sm text-slate-500 mt-1 lg:mt-2">Kesin kayıt katılımcılardan</p>
+            <p className="text-xs lg:text-sm text-slate-500 mt-1 lg:mt-2">Detay için tıklayın</p>
           </div>
 
-          <div className="teacher-card p-4 lg:p-6">
-            <div className="flex items-center gap-2 lg:gap-3 mb-2 lg:mb-4">
-              <Youtube size={20} className="lg:hidden text-red-600" />
-              <Youtube size={24} className="hidden lg:block text-red-600" />
-              <h3 className="text-base lg:text-lg font-bold text-slate-800">YouTube Kazancı</h3>
+          <div 
+            className="teacher-card p-4 lg:p-6 cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => navigate('/teacher/youtube-income')}
+          >
+            <div className="flex items-center justify-between mb-2 lg:mb-4">
+              <div className="flex items-center gap-2 lg:gap-3">
+                <Youtube size={20} className="lg:hidden text-red-600" />
+                <Youtube size={24} className="hidden lg:block text-red-600" />
+                <h3 className="text-base lg:text-lg font-bold text-slate-800">YouTube Kazancı</h3>
+              </div>
+              <ChevronRight size={18} className="text-slate-400" />
             </div>
             <p className="text-xl lg:text-3xl font-bold text-red-600">{balanceData.youtube_earnings?.toFixed(0) || '0'} ₺</p>
-            <p className="text-xs lg:text-sm text-slate-500 mt-1 lg:mt-2">Video çekimlerinden</p>
+            <p className="text-xs lg:text-sm text-slate-500 mt-1 lg:mt-2">Detay için tıklayın</p>
           </div>
         </div>
-
-        {/* Kamp Kazanç Detayları - Mobile optimized */}
-        {balanceData.camp_earnings_details && balanceData.camp_earnings_details.length > 0 && (
-          <div className="teacher-card p-4 lg:p-8 mb-4 lg:mb-6">
-            <h2 className="text-lg lg:text-xl font-bold text-slate-800 mb-3 lg:mb-4 flex items-center gap-2 lg:gap-3">
-              <Tent size={18} className="lg:hidden text-emerald-600" />
-              <Tent size={20} className="hidden lg:block text-emerald-600" />
-              Kamp Detayları
-            </h2>
-            <div className="space-y-2 lg:space-y-3">
-              {balanceData.camp_earnings_details.map((camp, index) => (
-                <div key={index} className="flex items-center justify-between p-3 lg:p-4 bg-emerald-50 rounded-lg lg:rounded-xl">
-                  <div className="min-w-0 flex-1 mr-3">
-                    <p className="font-semibold text-slate-800 text-sm lg:text-base truncate">{camp.camp_name}</p>
-                    <p className="text-xs lg:text-sm text-stone-600">
-                      {camp.paid_students} kişi × {camp.per_student_fee} ₺
-                    </p>
-                  </div>
-                  <p className="font-bold text-emerald-600 text-base lg:text-xl whitespace-nowrap">{camp.earning?.toFixed(0)} ₺</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* YouTube Kazanç Detayları - Mobile optimized */}
-        {balanceData.youtube_earnings_details && balanceData.youtube_earnings_details.length > 0 && (
-          <div className="teacher-card p-4 lg:p-8 mb-4 lg:mb-6">
-            <h2 className="text-lg lg:text-xl font-bold text-slate-800 mb-3 lg:mb-4 flex items-center gap-2 lg:gap-3">
-              <Youtube size={18} className="lg:hidden text-red-600" />
-              <Youtube size={20} className="hidden lg:block text-red-600" />
-              YouTube Detayları
-            </h2>
-            <div className="space-y-2 lg:space-y-3">
-              {balanceData.youtube_earnings_details.map((yt, index) => (
-                <div key={index} className="flex items-center justify-between p-3 lg:p-4 bg-red-50 rounded-lg lg:rounded-xl">
-                  <div className="min-w-0 flex-1 mr-3">
-                    <p className="font-semibold text-slate-800 text-sm lg:text-base truncate">{yt.title}</p>
-                    <p className="text-xs lg:text-sm text-stone-600">{yt.date}</p>
-                  </div>
-                  <p className="font-bold text-red-600 text-base lg:text-xl whitespace-nowrap">{yt.amount?.toFixed(0)} ₺</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Ödeme Geçmişi - Mobile optimized */}
         <div className="teacher-card p-4 lg:p-8">

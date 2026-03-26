@@ -1,113 +1,223 @@
 # Eğitim Yönetim Sistemi - PRD
 
 ## Proje Özeti
-Özel ders merkezi için web tabanlı yönetim sistemi. Admin ve Öğretmen rolleri ile öğrenci, öğretmen, ders, kamp ve ödeme yönetimi.
+Özel ders merkezi yönetim sistemi. Admin ve Teacher rolleri ile öğrenci, öğretmen, ders, ödeme, kamp ve YouTube içerik yönetimi.
 
-## Teknoloji Stack
-- **Backend:** FastAPI (Python)
-- **Frontend:** React + Tailwind CSS + Shadcn UI
-- **Database:** MongoDB
-- **Auth:** JWT Token
-
-## Kullanıcı Rolleri
-1. **Admin:** Tam yetki - tüm CRUD işlemleri, raporlar
-2. **Öğretmen:** Kendi öğrencileri, kampları, bakiyesi (read-only)
-
-## Test Hesapları
-- Admin: `admin` / `admin123`
-- Öğretmen: `teacher1` / `teacher123`
+## Versiyon: 3.0 (Branş Bazlı Kasa ve Finans Modülü)
 
 ---
 
 ## Tamamlanan Özellikler
 
-### 2026-03-25 - Aylık Program Filtre Düzeltmeleri (iteration_7) ✅
+### 1. Temel Modüller ✅
+- JWT tabanlı authentication (Admin/Teacher)
+- Öğrenci CRUD (soft delete)
+- Öğretmen CRUD (kullanıcı bilgileri düzenleme dahil)
+- Branş yönetimi
+- Ders tipleri (Birebir/Grup)
+- Planlı dersler
+- Gruplar ve grup dersleri
 
-**1. Ödeme Günü Kolonu (Ödeme Tarihi → Ödeme Günü)**
-- Artık öğrenci profilinden (`payment_freq`) gelen bilgi
-- Read-only görünüm (amber renkli badge: "Ayın X. günü")
-- Editable date input kaldırıldı
+### 2. Kamp Modülü ✅
+- Kamp oluşturma/düzenleme
+- Öğrenci kayıt durumu (ön kayıt/kesin kayıt)
+- Öğretmen kamp kazancı hesaplama
 
-**2. Ödeme Günü Filtresi (YENİ)**
-- "Tüm Günler" varsayılan seçenek
-- Dinamik seçenekler: Verideki benzersiz ödeme günleri (ör: "Ayın 1. günü", "Ayın 15. günü")
-- Seçilen güne göre filtreleme
+### 3. YouTube Modülü ✅
+- YouTube içerik kaydı
+- Öğretmen YouTube kazancı
 
-**3. Ödeme Durumu Filtresi (İyileştirildi)**
-- "Tüm Durumlar" varsayılan
-- "Boş (Girilmemiş)" seçeneği - durumu girilmemiş öğrencileri filtreler
-- Dinamik seçenekler: Veride girilen tüm benzersiz durumlar
+### 4. Aylık Program ✅
+- Detaylı aylık program aggregation endpoint
+- Ödeme durumu takibi
+- Filtreleme (ay, ödeme günü, ödeme durumu)
 
-**4. Temizle Butonu**
-- Aktif filtre sayısını gösteren badge ("X aktif")
-- Tüm filtreleri sıfırlar
+### 5. Branş Bazlı Kasa Sistemi ✅ (YENİ - v3.0)
 
-### 2026-03-25 - Branş ve Aylık Program İyileştirmeleri (iteration_6) ✅
-- Branşlar: Sadece branşa atanmış aktif öğretmenler
-- Aylık Program: Tamamen yeniden yapılandırıldı
-- Öğretmen Portal: 5 dashboard kartı
-- Öğretmen Bakiye: Ay filtresi
+#### 5.1 Kasa Yönetimi
+- **Her branş için ayrı kasa**: Matematik, Fen, Türkçe
+- **Kasa bakiyesi hesaplama**: Giriş - Çıkış
+- **Toplam bakiye görünümü**: Tüm kasaların toplamı
+- **Kasalar arası transfer**: Kaynak → Hedef otomatik işlem kaydı
+- **Kasa işlem geçmişi**: Her kasanın detaylı geçmişi
 
-### 2026-03-24 - Test Bulguları Düzeltmeleri (iteration_5) ✅
-- Öğrenci/Öğretmen Pasifleştirme
-- Branş Silme
-- Ödemeler Filtreleri
-- Kamp Ödeme Mantığı (statüye bağlı)
-- YouTube Pasifleştirme Kaldırma
+#### 5.2 Ödeme Akışı Güncelleme
+- **Ödeme girişi**: Öğrenci + Branş + Öğretmen + Kasa seçimi
+- **Para çıkışı kategorileri**: Maaş, Kira, Reklam, Ofis, Sermaye, Transfer
+- **Maaş ödemesi**: Öğretmen seçimi zorunlu
+- **Kasa bazlı filtreleme**: Ödemelerde kasa filtresi
+
+#### 5.3 Öğretmen Gelir Detay Ekranları
+- **Ders Kazanç Detayı**: Grup bazlı listeleme
+  - Grup adı, branş, ders tipi, grup boyutu
+  - Ders sayısı, birim ücret, hesaplama
+  - Ders tarihleri
+- **Kamp Kazanç Detayı**: Kamp bazlı listeleme
+- **YouTube Kazanç Detayı**: İçerik bazlı listeleme
+- **Aylık filtreleme**: Tüm detay ekranlarında
+
+#### 5.4 Öğrenci Finans Detayı
+- **Branş bazlı hesaplama**:
+  - Girilen ders sayısı
+  - Ödenen tutar
+  - Kullanılan tutar (ders × fiyat)
+  - Kalan bakiye
+  - Kalan ders sayısı
+  - Borçlu/Alacaklı durumu
+
+#### 5.5 Branş Bazlı Öğrenci Listesi
+- `/admin/students/branch/{branchId}` sayfası
+- Özet kartlar (öğrenci sayısı, toplam ödeme, kullanılan, net bakiye)
+- Her öğrenci için detaylı finans bilgisi
+- Borçludan alacaklıya sıralama
+- İsim/veli arama
+
+### 6. Grup Dersi Hesaplama Düzeltmesi ✅
+- **DOĞRU**: Öğretmen kazancı = Ders sayısı × Grup ücreti
+- **YANLIŞ DEĞİL**: Öğrenci sayısı ile çarpılmıyor
+- İlk öğrenciye tam ücret, diğerlerine 0 yazılıyor
+- Mevcut veriler fix endpoint ile düzeltildi
+
+### 7. Diğer Geliştirmeler ✅
+- Test hesap bilgisi login'den kaldırıldı
+- Banka hesabı silme (bakiye kontrolü ile)
+- Ödeme düzenleme/silme
+- Öğretmen kullanıcı bilgileri görüntüleme/düzenleme
+- Ders eklerken branş bazlı öğretmen filtreleme
+- Grup oluşturmada sınıf seçimi (5-8) ve öğrenci arama
+- Öğrenciler sayfasında özet istatistikler
+- 4+ kişilik gruplarda öğretmen geliri 4 kişi üzerinden
+- Sene sonu butonu (sınıf arttırma, 8. sınıf pasif)
 
 ---
 
-## Veri Modeli
+## Veri Modelleri
 
-### Student.payment_freq
-- **Eskiden:** "Ödeme sıklığı" olarak kullanılıyordu
-- **Şimdi:** "Ödeme Günü" - Öğrencinin her ay ödeme yapacağı gün (1-31)
-- Aylık Program'da bu değer "Ayın X. günü" formatında gösterilir
-- Öğrenci ekleme/düzenleme formunda "Ödeme Günü" etiketi kullanılır
+### BranchCashbox (YENİ)
+```python
+id: str
+branch_id: str
+name: str  # "Türkçe Kasası"
+created_at: datetime
+```
+
+### CashboxTransfer (YENİ)
+```python
+id: str
+from_cashbox_id: str
+to_cashbox_id: str
+amount: float
+description: str
+date: str
+created_at: datetime
+```
+
+### Payment (Güncellendi)
+```python
+id: str
+payment_type: str  # student_payment, teacher_payment, expense, transfer_in, transfer_out
+amount: float
+date: str
+student_id: str (optional)
+teacher_id: str (optional)
+branch_id: str (optional)  # YENİ
+cashbox_id: str (optional)  # YENİ
+bank_account_id: str (optional)
+description: str (optional)
+expense_category: str (optional)  # Maaş, Kira, Reklam, Ofis, Sermaye, Transfer
+transfer_id: str (optional)  # YENİ
+```
+
+### StudentCourse (Güncellendi)
+```python
+student_price: float (optional)  # YENİ - Öğrenci ders ücreti
+```
+
+### Lesson (Güncellendi)
+```python
+group_id: str (optional)  # YENİ - Grup dersi için
+```
 
 ---
 
 ## API Endpoints
 
-### Monthly Program
-- `GET /api/monthly-program-detailed?month=YYYY-MM`
-  - Response içerir: `payment_day` (student.payment_freq'den)
-- `PUT /api/monthly-program-notes/{student_id}?month=X&note=X&payment_status=X`
-  - Sadece `note` ve `payment_status` güncellenebilir
-  - `payment_date` parametresi kaldırıldı
+### Kasa Yönetimi
+- `GET /api/cashboxes` - Tüm kasalar + bakiyeler + toplam
+- `GET /api/cashboxes/{id}` - Kasa detayı + işlem geçmişi
+- `POST /api/cashboxes` - Yeni kasa (branş başına 1)
+- `POST /api/cashbox-transfers` - Kasalar arası transfer
+- `POST /api/init-cashboxes` - Migration: Kasaları oluştur
+
+### Öğretmen Gelir Detayları
+- `GET /api/teachers/{id}/lesson-income-detail` - Ders kazanç detayı
+- `GET /api/teachers/{id}/camp-income-detail` - Kamp kazanç detayı
+- `GET /api/teachers/{id}/youtube-income-detail` - YouTube kazanç detayı
+
+### Öğrenci Finans
+- `GET /api/students/{id}/finance-detail` - Branş bazlı finans özeti
+- `GET /api/students/by-branch/{branch_id}` - Branş bazlı öğrenci listesi
 
 ---
 
-## Test Durumu
-- iteration_5: Backend %100 (20/20)
-- iteration_6: Backend %100 (17/17)
-- iteration_7: Backend %100 (6/6), Frontend %100
+## Frontend Sayfaları
 
-Test raporları:
-- `/app/test_reports/iteration_5.json`
-- `/app/test_reports/iteration_6.json`
-- `/app/test_reports/iteration_7.json`
+### Yeni Sayfalar
+- `AdminCashboxes.jsx` - Kasa yönetimi
+- `AdminStudentsByBranch.jsx` - Branş bazlı öğrenci listesi
+- `TeacherLessonIncomeDetail.jsx` - Ders gelir detayı
+- `TeacherCampIncomeDetail.jsx` - Kamp gelir detayı
+- `TeacherYoutubeIncomeDetail.jsx` - YouTube gelir detayı
 
----
-
-## Bekleyen Görevler
-
-### P1 - Yüksek Öncelik
-- [ ] Performans optimizasyonları (N+1 query sorunu)
-- [ ] Pagination eklenmesi
-
-### P2 - Orta Öncelik
-- [ ] WordPress entegrasyonu
-
-### P3 - Düşük Öncelik
-- [ ] Backend modüler yapı refactoring
-- [ ] Hızlı ders girişi
-- [ ] Kamplar için SMS hatırlatmaları
+### Güncellenen Sayfalar
+- `AdminPayments.jsx` - Kasa seçimi, branş seçimi eklendi
+- `TeacherBalance.jsx` - Kartlar tıklanabilir (detay sayfalarına link)
+- `AdminLayout.jsx` - Kasalar menüsü eklendi
 
 ---
 
-## Notlar
-- **Ödeme Günü vs Ödeme Tarihi**: "Ödeme Günü" öğrencinin her ay aynı gün ödeme yapmasını belirtir (1-31). Editable değil, öğrenci profilinden gelir.
-- **Ödeme Durumu**: Free-text alan, her ay için ayrı kaydedilir (monthly_program_notes koleksiyonu)
-- YouTube kayıtları immutable
-- Pasif öğretmenler login yapamaz
+## Menü Yapısı
+
+### Admin Menü
+1. Ana Sayfa
+2. Öğrenciler
+3. Öğretmenler
+4. Gruplar
+5. Kamplar
+6. YouTube
+7. Branşlar
+8. **Kasalar** (YENİ)
+9. Ödemeler
+10. Banka Hesapları
+11. Aylık Program
+12. Kullanıcı Ekle
+
+---
+
+## Gelecek Görevler
+
+### P1 - Öncelikli
+- Backend refactoring (server.py ~3000 satır)
+- Performance optimizasyonları (N+1 query, pagination)
+
+### P2 - Normal
+- Branş bazlı öğrenci alt menüleri oluşturma
+- Öğrenci profil sayfasına finans detayı widget'ı
+
+### P3 - Gelecek
+- WordPress entegrasyonu
+- SMS hatırlatıcıları
+- Raporlama modülü
+
+---
+
+## Test Bilgileri
+- **Admin**: admin / admin123
+- **URL**: https://quirky-ride-4.preview.emergentagent.com
+
+---
+
+## Son Güncelleme
+- Tarih: 2026-03-26
+- Versiyon: 3.0
+- Değişiklik: Branş bazlı kasa sistemi, öğretmen gelir detay ekranları, öğrenci finans takibi
