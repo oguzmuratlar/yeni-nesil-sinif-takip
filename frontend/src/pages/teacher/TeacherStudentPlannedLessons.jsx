@@ -7,8 +7,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { Plus, Trash2, ArrowLeft } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Edit } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../../components/ui/alert-dialog';
 
 const TeacherStudentPlannedLessons = () => {
   const { id, courseId } = useParams();
@@ -17,11 +27,19 @@ const TeacherStudentPlannedLessons = () => {
   const [plannedLessons, setPlannedLessons] = useState([]);
   const [branch, setBranch] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState(null);
   const [newPlanned, setNewPlanned] = useState({
     dates: '',
     number_of_lessons: '',
     month: new Date().toISOString().substring(0, 7),
     messaged: false
+  });
+  const [editPlanned, setEditPlanned] = useState({
+    dates: '',
+    number_of_lessons: '',
+    month: ''
   });
 
   const months = [
@@ -90,11 +108,53 @@ const TeacherStudentPlannedLessons = () => {
     }
   };
 
-  const handleDeletePlanned = async (plannedId) => {
-    if (!window.confirm('Bu planlanmış dersi silmek istediğinizden emin misiniz?')) return;
+  // Düzenleme dialog'unu aç
+  const openEditDialog = (plan) => {
+    setSelectedPlan(plan);
+    setEditPlanned({
+      dates: plan.dates,
+      number_of_lessons: String(plan.number_of_lessons),
+      month: plan.month
+    });
+    setEditDialogOpen(true);
+  };
+
+  // Planı güncelle
+  const handleUpdatePlanned = async () => {
+    if (!editPlanned.dates || !editPlanned.number_of_lessons || !editPlanned.month) {
+      toast.error('Tüm alanları doldurun');
+      return;
+    }
     try {
-      await apiClient.delete(`/planned-lessons/${plannedId}`);
-      toast.success('Planlanmış ders silindi');
+      await apiClient.put(`/planned-lessons/${selectedPlan.id}`, {
+        student_course_id: courseId,
+        dates: editPlanned.dates,
+        number_of_lessons: parseInt(editPlanned.number_of_lessons),
+        month: editPlanned.month,
+        messaged: selectedPlan.messaged || false
+      });
+      toast.success('Plan güncellendi');
+      setEditDialogOpen(false);
+      setSelectedPlan(null);
+      fetchData();
+    } catch (error) {
+      toast.error('Güncelleme başarısız');
+    }
+  };
+
+  // Silme dialog'unu aç
+  const openDeleteDialog = (plan) => {
+    setSelectedPlan(plan);
+    setDeleteDialogOpen(true);
+  };
+
+  // Planı sil
+  const handleDeletePlanned = async () => {
+    try {
+      await apiClient.delete(`/planned-lessons/${selectedPlan.id}`);
+      toast.success('Plan silindi');
+      setDeleteDialogOpen(false);
+      setSelectedPlan(null);
       fetchData();
     } catch (error) {
       toast.error('Silinemedi');
@@ -196,19 +256,92 @@ const TeacherStudentPlannedLessons = () => {
                     <p className="font-semibold text-slate-800 text-lg">{planned.dates} ({planned.month})</p>
                     <p className="text-sm text-stone-600">{planned.number_of_lessons} ders</p>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => handleDeletePlanned(planned.id)}
-                    className="rounded-full"
-                  >
-                    <Trash2 size={16} />
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openEditDialog(planned)}
+                      className="rounded-full"
+                    >
+                      <Edit size={16} />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => openDeleteDialog(planned)}
+                      className="rounded-full"
+                    >
+                      <Trash2 size={16} />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
           )}
         </div>
+
+        {/* Edit Dialog */}
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Ders Planı Düzenle</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Ay *</Label>
+                <Select value={editPlanned.month} onValueChange={(val) => setEditPlanned({ ...editPlanned, month: val })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Ay seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {months.map(m => (
+                      <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Tarihler *</Label>
+                <Input
+                  value={editPlanned.dates}
+                  onChange={(e) => setEditPlanned({ ...editPlanned, dates: e.target.value })}
+                  placeholder="Örn: 3-10-17-24"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Toplam Ders Sayısı *</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={editPlanned.number_of_lessons}
+                  onChange={(e) => setEditPlanned({ ...editPlanned, number_of_lessons: e.target.value })}
+                />
+              </div>
+              <div className="flex gap-3">
+                <Button onClick={handleUpdatePlanned} className="flex-1 teacher-btn">Güncelle</Button>
+                <Button variant="outline" onClick={() => setEditDialogOpen(false)} className="rounded-full">İptal</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Planı Sil</AlertDialogTitle>
+              <AlertDialogDescription>
+                Bu ders planını silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>İptal</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeletePlanned} className="bg-red-600 hover:bg-red-700">
+                Sil
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </TeacherLayout>
   );

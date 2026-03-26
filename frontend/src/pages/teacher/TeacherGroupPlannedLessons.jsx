@@ -8,8 +8,18 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { toast } from 'sonner';
-import { Users, ArrowLeft, Plus, Calendar } from 'lucide-react';
+import { Users, ArrowLeft, Plus, Calendar, Edit, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../../components/ui/alert-dialog';
 
 const TeacherGroupPlannedLessons = () => {
   const { groupId } = useParams();
@@ -22,10 +32,18 @@ const TeacherGroupPlannedLessons = () => {
   const [plannedLessons, setPlannedLessons] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState(null);
   const [newPlan, setNewPlan] = useState({
     dates: '',
     number_of_lessons: '',
     month: new Date().toISOString().substring(0, 7)
+  });
+  const [editPlan, setEditPlan] = useState({
+    dates: '',
+    number_of_lessons: '',
+    month: ''
   });
 
   const months = [
@@ -113,6 +131,84 @@ const TeacherGroupPlannedLessons = () => {
     } catch (error) {
       console.error('Plan error:', error);
       toast.error(error.response?.data?.detail || 'Planlama eklenemedi');
+    }
+  };
+
+  // Düzenleme dialog'unu aç
+  const openEditDialog = (plan) => {
+    setSelectedPlan(plan);
+    setEditPlan({
+      dates: plan.dates,
+      number_of_lessons: String(plan.number_of_lessons),
+      month: plan.month
+    });
+    setEditDialogOpen(true);
+  };
+
+  // Planı güncelle - gruptaki tüm öğrenciler için
+  const handleUpdatePlan = async () => {
+    if (!editPlan.dates || !editPlan.number_of_lessons || !editPlan.month) {
+      toast.error('Tüm alanları doldurun');
+      return;
+    }
+
+    try {
+      // Gruptaki tüm aynı planlı dersleri bul ve güncelle
+      const matchingPlans = plannedLessons.filter(p => 
+        p.month === selectedPlan.month && 
+        p.dates === selectedPlan.dates && 
+        p.number_of_lessons === selectedPlan.number_of_lessons
+      );
+
+      // Her birini güncelle
+      await Promise.all(matchingPlans.map(plan => 
+        apiClient.put(`/planned-lessons/${plan.id}`, {
+          student_course_id: plan.student_course_id,
+          dates: editPlan.dates,
+          number_of_lessons: parseInt(editPlan.number_of_lessons),
+          month: editPlan.month,
+          messaged: plan.messaged || false
+        })
+      ));
+
+      toast.success(`${matchingPlans.length} öğrenci için plan güncellendi`);
+      setEditDialogOpen(false);
+      setSelectedPlan(null);
+      fetchData();
+    } catch (error) {
+      console.error('Update error:', error);
+      toast.error('Güncelleme başarısız');
+    }
+  };
+
+  // Silme dialog'unu aç
+  const openDeleteDialog = (plan) => {
+    setSelectedPlan(plan);
+    setDeleteDialogOpen(true);
+  };
+
+  // Planı sil - gruptaki tüm öğrenciler için
+  const handleDeletePlan = async () => {
+    try {
+      // Gruptaki tüm aynı planlı dersleri bul ve sil
+      const matchingPlans = plannedLessons.filter(p => 
+        p.month === selectedPlan.month && 
+        p.dates === selectedPlan.dates && 
+        p.number_of_lessons === selectedPlan.number_of_lessons
+      );
+
+      // Her birini sil
+      await Promise.all(matchingPlans.map(plan => 
+        apiClient.delete(`/planned-lessons/${plan.id}`)
+      ));
+
+      toast.success(`${matchingPlans.length} öğrenci için plan silindi`);
+      setDeleteDialogOpen(false);
+      setSelectedPlan(null);
+      fetchData();
+    } catch (error) {
+      console.error('Delete error:', error);
+      toast.error('Silme başarısız');
     }
   };
 
@@ -295,13 +391,31 @@ const TeacherGroupPlannedLessons = () => {
                 <div key={month} className="bg-slate-50 rounded-lg p-4">
                   <h3 className="font-bold text-purple-700 text-lg mb-2">{month}</h3>
                   {plans.map((plan, idx) => (
-                    <div key={plan.id || idx} className="flex items-center justify-between">
+                    <div key={plan.id || idx} className="flex items-center justify-between py-2 border-b border-slate-200 last:border-b-0">
                       <span className="text-slate-700 font-medium">
                         {plan.dates} - {plan.number_of_lessons} Ders
                       </span>
-                      {plan.messaged && (
-                        <span className="text-xs text-green-600">✓ Mesaj gönderildi</span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {plan.messaged && (
+                          <span className="text-xs text-green-600">✓ Mesaj gönderildi</span>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openEditDialog(plan)}
+                          className="h-8 w-8 p-0 text-slate-500 hover:text-blue-600"
+                        >
+                          <Edit size={16} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openDeleteDialog(plan)}
+                          className="h-8 w-8 p-0 text-slate-500 hover:text-red-600"
+                        >
+                          <Trash2 size={16} />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -309,6 +423,74 @@ const TeacherGroupPlannedLessons = () => {
             </div>
           )}
         </div>
+
+        {/* Edit Dialog */}
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Grup Ders Planı Düzenle</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Ay *</Label>
+                <Select value={editPlan.month} onValueChange={(val) => setEditPlan({ ...editPlan, month: val })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Ay seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {months.map(m => (
+                      <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Tarihler *</Label>
+                <Input
+                  placeholder="Örn: 3-10-17-24"
+                  value={editPlan.dates}
+                  onChange={(e) => setEditPlan({ ...editPlan, dates: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Toplam Ders Sayısı *</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={editPlan.number_of_lessons}
+                  onChange={(e) => setEditPlan({ ...editPlan, number_of_lessons: e.target.value })}
+                />
+              </div>
+              <div className="bg-yellow-50 p-3 rounded-lg">
+                <p className="text-sm text-yellow-700">
+                  Bu değişiklik <strong>{groupStudentsList.length} öğrenci</strong> için geçerli olacaktır.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <Button onClick={handleUpdatePlan} className="flex-1">Güncelle</Button>
+                <Button variant="outline" onClick={() => setEditDialogOpen(false)}>İptal</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Planı Sil</AlertDialogTitle>
+              <AlertDialogDescription>
+                Bu ders planını silmek istediğinizden emin misiniz? Bu işlem <strong>{groupStudentsList.length} öğrenci</strong> için geçerli olacaktır ve geri alınamaz.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>İptal</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeletePlan} className="bg-red-600 hover:bg-red-700">
+                Sil
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </TeacherLayout>
   );
