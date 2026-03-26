@@ -4,13 +4,14 @@ import AdminLayout from '../../components/layouts/AdminLayout';
 import apiClient from '../../api/axios';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-import { Plus, Search, ChevronRight, Users } from 'lucide-react';
+import { Plus, Search, ChevronRight, Users, BookOpen } from 'lucide-react';
 import { Badge } from '../../components/ui/badge';
 import { toast } from 'sonner';
 
 const AdminStudents = () => {
   const [students, setStudents] = useState([]);
   const [studentStats, setStudentStats] = useState(null);
+  const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -20,6 +21,7 @@ const AdminStudents = () => {
   useEffect(() => {
     fetchStudents();
     fetchStudentStats();
+    fetchBranches();
   }, [showInactive]);
 
   const fetchStudents = async () => {
@@ -43,6 +45,15 @@ const AdminStudents = () => {
       setStudentStats(response.data);
     } catch (error) {
       console.error('Error fetching student stats:', error);
+    }
+  };
+
+  const fetchBranches = async () => {
+    try {
+      const response = await apiClient.get('/branches');
+      setBranches(response.data);
+    } catch (error) {
+      console.error('Error fetching branches:', error);
     }
   };
 
@@ -133,6 +144,36 @@ const AdminStudents = () => {
                 </Badge>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Branş Bazlı Öğrenci Listelerine Hızlı Erişim */}
+        {branches.length > 0 && (
+          <div className="admin-card p-4 mb-6">
+            <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+              <BookOpen size={16} />
+              Branş Bazlı Öğrenci Listeleri
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {branches.map((branch) => (
+                <Button
+                  key={branch.id}
+                  variant="outline"
+                  onClick={() => navigate(`/admin/students/branch/${branch.id}`)}
+                  className="h-12 justify-between"
+                  data-testid={`branch-students-${branch.id}`}
+                >
+                  <span className="flex items-center gap-2">
+                    <BookOpen size={16} />
+                    {branch.name} Öğrencileri
+                  </span>
+                  <ChevronRight size={16} className="text-slate-400" />
+                </Button>
+              ))}
+            </div>
+            <p className="text-xs text-slate-500 mt-2">
+              Her branş için detaylı finans bilgisi ve borç/alacak durumu
+            </p>
           </div>
         )}
 
