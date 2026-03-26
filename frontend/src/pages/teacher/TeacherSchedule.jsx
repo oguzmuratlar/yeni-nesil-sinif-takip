@@ -16,6 +16,8 @@ const TeacherSchedule = () => {
   const [branches, setBranches] = useState([]);
   const [courses, setCourses] = useState([]);
   const [groups, setGroups] = useState([]);
+  const [teacherPrices, setTeacherPrices] = useState([]);
+  const [lessonTypes, setLessonTypes] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().substring(0, 7));
 
   const months = [
@@ -41,18 +43,22 @@ const TeacherSchedule = () => {
     
     setLoading(true);
     try {
-      const [plannedRes, studentsRes, branchesRes, coursesRes, groupsRes] = await Promise.all([
+      const [plannedRes, studentsRes, branchesRes, coursesRes, groupsRes, pricesRes, typesRes] = await Promise.all([
         apiClient.get('/planned-lessons'),
         apiClient.get('/students'),
         apiClient.get('/branches'),
         apiClient.get('/student-courses'),
-        apiClient.get('/student-groups')
+        apiClient.get('/student-groups'),
+        apiClient.get(`/teacher-prices?teacher_id=${user.teacher_id}`),
+        apiClient.get('/lesson-types')
       ]);
       
       setStudents(studentsRes.data);
       setBranches(branchesRes.data);
       setCourses(coursesRes.data);
       setGroups(groupsRes.data);
+      setTeacherPrices(pricesRes.data);
+      setLessonTypes(typesRes.data);
       
       // Öğretmene ait kursları filtrele
       const teacherCourseIds = coursesRes.data
@@ -72,12 +78,39 @@ const TeacherSchedule = () => {
     }
   };
 
+  // Öğretmen ücretini hesapla (teacher_prices tablosundan)
+  const getTeacherRate = (branchId, lessonTypeId, groupSize = null) => {
+    // Lesson type ismini bul
+    const lessonType = lessonTypes.find(lt => lt.id === lessonTypeId);
+    const isGroup = lessonType?.name?.toLowerCase() === 'grup';
+    
+    if (isGroup && groupSize !== null) {
+      // Grup dersi - group_size'a göre fiyat bul
+      const effectiveSize = groupSize <= 4 ? groupSize : 4;
+      const price = teacherPrices.find(tp => 
+        tp.branch_id === branchId && 
+        tp.lesson_type_id === lessonTypeId && 
+        tp.group_size === effectiveSize
+      );
+      return price?.price || 0;
+    } else {
+      // Birebir ders
+      const price = teacherPrices.find(tp => 
+        tp.branch_id === branchId && 
+        tp.lesson_type_id === lessonTypeId && 
+        tp.group_size === null
+      );
+      return price?.price || 0;
+    }
+  };
+
   // Seçili aya göre filtrele
   const filteredLessons = plannedLessons.filter(p => p.month === selectedMonth);
 
-  // Aylık istatistikleri hesapla - Doğru formül:
-  // Birebir: ders sayısı x öğretmen ücreti
-  // Grup: ders sayısı x grup ücreti (grup ücreti = price alanı)
+  // Aylık istatistikleri hesapla
+  // KURAL: teacher_prices tablosundan öğretmen ücretini al
+  // Birebir: ders sayısı x birebir ücreti
+  // Grup: ders sayısı x grup ücreti (grup sayısına göre)
   const calculateStats = () => {
     let totalLessons = 0;
     let estimatedEarning = 0;
@@ -89,7 +122,6 @@ const TeacherSchedule = () => {
       const course = courses.find(c => c.id === plan.student_course_id);
       if (!course) return;
       
-      const student = students.find(s => s.id === course.student_id);
       const group = groups.find(g => 
         g.student_ids?.includes(course.student_id) && g.branch_id === course.branch_id
       );
@@ -101,13 +133,16 @@ const TeacherSchedule = () => {
         if (!processedGroupPlans.has(groupPlanKey)) {
           processedGroupPlans.add(groupPlanKey);
           // Grup dersi: sadece bir kez sayılır (öğretmen için)
+          const groupSize = group.student_ids?.length || 1;
+          const teacherRate = getTeacherRate(course.branch_id, course.lesson_type_id, groupSize);
           totalLessons += plan.number_of_lessons;
-          estimatedEarning += plan.number_of_lessons * (course.price || 0);
+          estimatedEarning += plan.number_of_lessons * teacherRate;
         }
       } else {
         // Birebir ders
+        const teacherRate = getTeacherRate(course.branch_id, course.lesson_type_id, null);
         totalLessons += plan.number_of_lessons;
-        estimatedEarning += plan.number_of_lessons * (course.price || 0);
+        estimatedEarning += plan.number_of_lessons * teacherRate;
       }
     });
     
@@ -126,6 +161,10 @@ const TeacherSchedule = () => {
         g.student_ids?.includes(course.student_id) && g.branch_id === course.branch_id
       ) : null;
       
+      // Öğretmen ücretini hesapla
+      const groupSize = group ? (group.student_ids?.length || 1) : null;
+      const teacherRate = course ? getTeacherRate(course.branch_id, course.lesson_type_id, groupSize) : 0;
+      
       return {
         ...plan,
         course,
@@ -133,7 +172,7 @@ const TeacherSchedule = () => {
         branch,
         group,
         totalLessons: plan.number_of_lessons,
-        earning: course ? (plan.number_of_lessons * (course.price || 0)) : 0
+        earning: plan.number_of_lessons * teacherRate
       };
     }).sort((a, b) => (a.student?.name || '').localeCompare(b.student?.name || ''));
   };
@@ -152,10 +191,12 @@ const TeacherSchedule = () => {
       const groupPlanKey = `${p.group.id}-${p.month}-${p.dates}`;
       if (!seenGroups.has(groupPlanKey)) {
         seenGroups.add(groupPlanKey);
+        const groupSize = p.group.student_ids?.length || 1;
+        const teacherRate = p.course ? getTeacherRate(p.course.branch_id, p.course.lesson_type_id, groupSize) : 0;
         uniqueGroups.push({
           ...p,
           totalGroupLessons: p.number_of_lessons,
-          groupEarning: p.number_of_lessons * (p.course?.price || 0)
+          groupEarning: p.number_of_lessons * teacherRate
         });
       }
     }

@@ -407,6 +407,62 @@ def create_access_token(data: dict):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
+# ============================================================
+# SHARED TEACHER EARNING CALCULATION FUNCTION
+# ============================================================
+async def calculate_teacher_earning_rate(
+    teacher_id: str,
+    branch_id: str,
+    lesson_type_id: str,
+    group_size: int = None
+) -> float:
+    """
+    Öğretmenin ders ücretini hesaplar.
+    
+    Kurallar:
+    - Birebir ders: teacher_prices'dan birebir fiyatı al
+    - Grup dersi: group_size'a göre fiyat al
+      - 1 kişilik grup: ayrı fiyat
+      - 2-3-4 kişilik grup: aynı fiyat
+    
+    Returns: Öğretmenin ders başına ücreti (TL)
+    """
+    # teacher_prices'dan fiyat bul
+    query = {
+        "teacher_id": teacher_id,
+        "branch_id": branch_id,
+        "lesson_type_id": lesson_type_id
+    }
+    
+    # Lesson type ismini kontrol et (Birebir vs Grup)
+    lesson_type = await db.lesson_types.find_one({"id": lesson_type_id}, {"_id": 0})
+    is_group = lesson_type and lesson_type.get("name", "").lower() == "grup"
+    
+    if is_group and group_size is not None:
+        # Grup dersi - group_size'a göre fiyat bul
+        # 2, 3, 4 kişilik gruplar aynı fiyat
+        effective_group_size = group_size if group_size <= 4 else 4
+        query["group_size"] = effective_group_size
+    else:
+        # Birebir ders
+        query["group_size"] = None
+    
+    price_record = await db.teacher_prices.find_one(query, {"_id": 0})
+    
+    if price_record:
+        return price_record.get("price", 0)
+    
+    # Eğer exact match bulunamazsa, sadece teacher_id ve branch_id ile dene
+    fallback = await db.teacher_prices.find_one({
+        "teacher_id": teacher_id,
+        "branch_id": branch_id,
+        "lesson_type_id": lesson_type_id
+    }, {"_id": 0})
+    
+    return fallback.get("price", 0) if fallback else 0
+
+# ============================================================
+
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -1678,6 +1734,7 @@ async def get_monthly_program_detailed(month: str, current_user: User = Depends(
         
         # Her öğretmen için kazanç hesapla
         # ÖNEMLI: Grup dersleri için aynı dersi sadece bir kez saymalıyız
+        # KURAL: teacher_prices tablosundan öğretmen ücretini al, öğrenci fiyatını kullanma!
         teacher_earnings = {}
         for course in student_course_list:
             teacher_id = course.get("teacher_id")
@@ -1685,6 +1742,8 @@ async def get_monthly_program_detailed(month: str, current_user: User = Depends(
                 continue
             
             teacher_name = teacher_map[teacher_id]
+            branch_id = course.get("branch_id")
+            lesson_type_id = course.get("lesson_type_id")
             
             # Bu kurs için planlı dersleri bul
             course_planned = [pl for pl in planned_lessons if pl["student_course_id"] == course["id"]]
@@ -1695,15 +1754,24 @@ async def get_monthly_program_detailed(month: str, current_user: User = Depends(
             # Bu öğrenci bu branşta bir gruba dahil mi kontrol et
             is_group_lesson = False
             group_id = None
+            group_size = 0
             for group in student_groups:
-                if student["id"] in (group.get("student_ids") or []) and group.get("branch_id") == course.get("branch_id"):
+                if student["id"] in (group.get("student_ids") or []) and group.get("branch_id") == branch_id:
                     is_group_lesson = True
                     group_id = group["id"]
+                    group_size = len(group.get("student_ids") or [])
                     break
+            
+            # Öğretmen ücretini teacher_prices'dan al
+            teacher_rate = await calculate_teacher_earning_rate(
+                teacher_id=teacher_id,
+                branch_id=branch_id,
+                lesson_type_id=lesson_type_id,
+                group_size=group_size if is_group_lesson else None
+            )
             
             for pl in course_planned:
                 total_lessons = pl.get("number_of_lessons", 0)
-                teacher_rate = course.get("price", 0)
                 earning = total_lessons * teacher_rate
                 
                 if is_group_lesson and group_id:
