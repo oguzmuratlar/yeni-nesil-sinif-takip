@@ -8,6 +8,7 @@ import { Button } from '../../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { ArrowLeft, Users, BookOpen, Calendar } from 'lucide-react';
 import { Badge } from '../../components/ui/badge';
+import { formatDateTurkish } from '../../lib/dateUtils';
 
 const TeacherLessonIncomeDetail = () => {
   const { id } = useParams();
@@ -170,7 +171,7 @@ const TeacherLessonIncomeDetail = () => {
                     </p>
                     <div className="flex flex-wrap gap-1">
                       {item.dates.slice(0, 10).map((date, i) => (
-                        <Badge key={i} variant="outline" className="text-xs">{date}</Badge>
+                        <Badge key={i} variant="outline" className="text-xs">{formatDateTurkish(date)}</Badge>
                       ))}
                       {item.dates.length > 10 && (
                         <Badge variant="outline" className="text-xs">+{item.dates.length - 10} daha</Badge>

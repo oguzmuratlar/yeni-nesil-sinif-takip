@@ -5,6 +5,7 @@ import apiClient from '../../api/axios';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
+import { DatePicker } from '../../components/ui/date-picker';
 import { ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -89,12 +90,10 @@ const AdminGroupLesson = () => {
           <div className="admin-card p-8 space-y-6">
             <div className="space-y-2">
               <Label htmlFor="date">Ders Tarihi *</Label>
-              <Input
-                id="date"
-                type="date"
+              <DatePicker
                 value={formData.date}
-                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                required
+                onChange={(date) => setFormData({ ...formData, date })}
+                placeholder="Tarih seçin"
               />
             </div>
 

@@ -5,9 +5,11 @@ import apiClient from '../../api/axios';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
+import { DatePicker } from '../../components/ui/date-picker';
 import { toast } from 'sonner';
 import { Users, ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
+import { formatDateTurkish } from '../../lib/dateUtils';
 
 const TeacherGroupLessons = () => {
   const { groupId } = useParams();
@@ -176,10 +178,10 @@ const TeacherGroupLessons = () => {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>Tarih</Label>
-                  <Input
-                    type="date"
+                  <DatePicker
                     value={newLesson.date}
-                    onChange={(e) => setNewLesson({ ...newLesson, date: e.target.value })}
+                    onChange={(date) => setNewLesson({ ...newLesson, date })}
+                    placeholder="Tarih seçin"
                   />
                 </div>
                 <div className="space-y-2">
@@ -217,7 +219,7 @@ const TeacherGroupLessons = () => {
                 <div key={date} className="border-b pb-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-semibold text-slate-800">{date}</p>
+                      <p className="font-semibold text-slate-800">{formatDateTurkish(date)}</p>
                       <p className="text-sm text-slate-600">
                         {dateLessons.length} öğrenci • {dateLessons.reduce((s, l) => s + l.number_of_lessons, 0)} ders
                       </p>

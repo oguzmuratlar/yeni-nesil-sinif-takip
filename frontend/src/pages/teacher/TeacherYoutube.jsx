@@ -3,6 +3,7 @@ import TeacherLayout from '../../components/layouts/TeacherLayout';
 import apiClient from '../../api/axios';
 import { Youtube } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatDateTurkish } from '../../lib/dateUtils';
 
 const TeacherYoutube = () => {
   const [records, setRecords] = useState([]);
@@ -83,7 +84,7 @@ const TeacherYoutube = () => {
                     <td className="py-4 px-4 text-center">
                       <span className="font-bold text-green-600 text-lg">{record.amount} ₺</span>
                     </td>
-                    <td className="py-4 px-4 text-center text-slate-600">{record.date}</td>
+                    <td className="py-4 px-4 text-center text-slate-600">{formatDateTurkish(record.date)}</td>
                   </tr>
                 ))}
               </tbody>

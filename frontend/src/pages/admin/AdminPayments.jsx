@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import AdminLayout from '../../components/layouts/AdminLayout';
 import apiClient from '../../api/axios';
 import { Button } from '../../components/ui/button';
@@ -7,8 +7,13 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
-import { Plus, ArrowUpCircle, ArrowDownCircle, Filter, X, Edit, Trash2 } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../../components/ui/command';
+import { DatePicker } from '../../components/ui/date-picker';
+import { Plus, ArrowUpCircle, ArrowDownCircle, Filter, X, Edit, Trash2, Check, ChevronsUpDown, User } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '../../lib/utils';
+import { formatDateTurkish } from '../../lib/dateUtils';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,6 +39,11 @@ const AdminPayments = () => {
   const [selectedCashbox, setSelectedCashbox] = useState('all');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [paymentToDelete, setPaymentToDelete] = useState(null);
+  const [selectedStudentFilter, setSelectedStudentFilter] = useState('');
+  const [studentFilterOpen, setStudentFilterOpen] = useState(false);
+  const [studentFilterSearch, setStudentFilterSearch] = useState('');
+  const [formStudentOpen, setFormStudentOpen] = useState(false);
+  const [formStudentSearch, setFormStudentSearch] = useState('');
   const [newPayment, setNewPayment] = useState({
     amount: '',
     date: new Date().toISOString().split('T')[0],
@@ -52,7 +62,41 @@ const AdminPayments = () => {
 
   useEffect(() => {
     fetchPayments();
-  }, [selectedMonth, selectedCashbox]);
+  }, [selectedMonth, selectedCashbox, selectedStudentFilter]);
+
+  // Custom filter function for combo search (student name + parent name)
+  const filterStudents = (searchTerm, studentList) => {
+    if (!searchTerm.trim()) return studentList;
+    
+    const searchWords = searchTerm.toLowerCase().trim().split(/\s+/);
+    
+    return studentList.filter(student => {
+      const studentName = (student.name || '').toLowerCase();
+      const parentName = (student.parent_name || '').toLowerCase();
+      const combinedText = `${studentName} ${parentName}`;
+      
+      // All search words must match somewhere in student name or parent name
+      return searchWords.every(word => combinedText.includes(word));
+    });
+  };
+
+  // Filtered students for filter dropdown
+  const filteredStudentsForFilter = useMemo(() => {
+    return filterStudents(studentFilterSearch, students.filter(s => s.status === 'active'));
+  }, [students, studentFilterSearch]);
+
+  // Filtered students for form dropdown
+  const filteredStudentsForForm = useMemo(() => {
+    return filterStudents(formStudentSearch, students.filter(s => s.status === 'active'));
+  }, [students, formStudentSearch]);
+
+  // Get display label for student (name - parent_name)
+  const getStudentDisplayLabel = (student) => {
+    if (!student) return '';
+    return student.parent_name 
+      ? `${student.name} - ${student.parent_name}`
+      : student.name;
+  };
 
   const fetchReferenceData = async () => {
     try {
@@ -80,7 +124,10 @@ const AdminPayments = () => {
         url += `month=${selectedMonth}&`;
       }
       if (selectedCashbox && selectedCashbox !== 'all') {
-        url += `cashbox_id=${selectedCashbox}`;
+        url += `cashbox_id=${selectedCashbox}&`;
+      }
+      if (selectedStudentFilter) {
+        url += `student_id=${selectedStudentFilter}`;
       }
       const response = await apiClient.get(url);
       setPayments(response.data);
@@ -201,7 +248,7 @@ const AdminPayments = () => {
     return (
       <div key={payment.id} className={`flex items-center justify-between p-3 lg:p-4 ${bgClass} rounded-lg`}>
         <div className="min-w-0 flex-1 mr-3">
-          <p className="font-semibold text-slate-800 text-sm lg:text-base">{payment.date}</p>
+          <p className="font-semibold text-slate-800 text-sm lg:text-base">{formatDateTurkish(payment.date)}</p>
           <p className="text-xs lg:text-sm text-slate-600 truncate">
             {payment.payment_type === 'student_payment' ? `Öğrenci: ${student?.name || 'Bilinmiyor'}` : 
              payment.payment_type === 'teacher_payment' ? `Öğretmen: ${teacher?.name || 'Bilinmiyor'}` : 
@@ -309,7 +356,67 @@ const AdminPayments = () => {
               <span className="text-sm font-medium text-slate-700">Filtreler:</span>
             </div>
             
-            <div className="grid grid-cols-2 sm:flex gap-2 sm:gap-3 flex-1">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 flex-1">
+              {/* Student Filter Combobox */}
+              <Popover open={studentFilterOpen} onOpenChange={setStudentFilterOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={studentFilterOpen}
+                    className="h-11 lg:h-10 justify-between text-sm font-normal"
+                    data-testid="student-filter"
+                  >
+                    {selectedStudentFilter ? (
+                      <span className="truncate">
+                        {getStudentDisplayLabel(students.find(s => s.id === selectedStudentFilter))}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">Öğrenci Ara...</span>
+                    )}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[300px] p-0" align="start">
+                  <Command shouldFilter={false}>
+                    <CommandInput 
+                      placeholder="Öğrenci veya veli adı yazın..." 
+                      value={studentFilterSearch}
+                      onValueChange={setStudentFilterSearch}
+                    />
+                    <CommandList>
+                      <CommandEmpty>Öğrenci bulunamadı.</CommandEmpty>
+                      <CommandGroup>
+                        {filteredStudentsForFilter.slice(0, 50).map((student) => (
+                          <CommandItem
+                            key={student.id}
+                            value={student.id}
+                            onSelect={() => {
+                              setSelectedStudentFilter(student.id === selectedStudentFilter ? '' : student.id);
+                              setStudentFilterOpen(false);
+                              setStudentFilterSearch('');
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedStudentFilter === student.id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            <div className="flex flex-col">
+                              <span className="font-medium">{student.name}</span>
+                              {student.parent_name && (
+                                <span className="text-xs text-muted-foreground">Veli: {student.parent_name}</span>
+                              )}
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+
               <Select value={selectedMonth || 'all'} onValueChange={(val) => setSelectedMonth(val === 'all' ? '' : val)}>
                 <SelectTrigger className="h-11 lg:h-10 text-sm" data-testid="month-filter">
                   <SelectValue placeholder="Ay seçin" />
@@ -344,13 +451,15 @@ const AdminPayments = () => {
               </Select>
             </div>
 
-            {(selectedMonth || selectedCashbox !== 'all') && (
+            {(selectedMonth || selectedCashbox !== 'all' || selectedStudentFilter) && (
               <Button 
                 variant="ghost" 
                 size="sm"
                 onClick={() => {
                   setSelectedMonth('');
                   setSelectedCashbox('all');
+                  setSelectedStudentFilter('');
+                  setStudentFilterSearch('');
                 }}
                 className="h-10 text-slate-600"
               >
@@ -407,16 +516,64 @@ const AdminPayments = () => {
                 <>
                   <div className="space-y-2">
                     <Label htmlFor="student">Öğrenci *</Label>
-                    <Select value={newPayment.student_id} onValueChange={(value) => setNewPayment({ ...newPayment, student_id: value })}>
-                      <SelectTrigger className="h-12">
-                        <SelectValue placeholder="Öğrenci seçin" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {students.filter(s => s.status === 'active').map((student) => (
-                          <SelectItem key={student.id} value={student.id}>{student.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Popover open={formStudentOpen} onOpenChange={setFormStudentOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={formStudentOpen}
+                          className="w-full h-12 justify-between font-normal"
+                          data-testid="payment-student-select"
+                        >
+                          {newPayment.student_id ? (
+                            <span className="truncate">
+                              {getStudentDisplayLabel(students.find(s => s.id === newPayment.student_id))}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">Öğrenci veya veli adı yazın...</span>
+                          )}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[350px] p-0" align="start">
+                        <Command shouldFilter={false}>
+                          <CommandInput 
+                            placeholder="Öğrenci veya veli adı yazın..." 
+                            value={formStudentSearch}
+                            onValueChange={setFormStudentSearch}
+                          />
+                          <CommandList>
+                            <CommandEmpty>Öğrenci bulunamadı.</CommandEmpty>
+                            <CommandGroup>
+                              {filteredStudentsForForm.slice(0, 50).map((student) => (
+                                <CommandItem
+                                  key={student.id}
+                                  value={student.id}
+                                  onSelect={() => {
+                                    setNewPayment({ ...newPayment, student_id: student.id });
+                                    setFormStudentOpen(false);
+                                    setFormStudentSearch('');
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      newPayment.student_id === student.id ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  <div className="flex flex-col">
+                                    <span className="font-medium">{student.name}</span>
+                                    {student.parent_name && (
+                                      <span className="text-xs text-muted-foreground">Veli: {student.parent_name}</span>
+                                    )}
+                                  </div>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="branch">Branş *</Label>
@@ -504,13 +661,10 @@ const AdminPayments = () => {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="date">Tarih *</Label>
-                <Input
-                  id="date"
-                  type="date"
+                <DatePicker
                   value={newPayment.date}
-                  onChange={(e) => setNewPayment({ ...newPayment, date: e.target.value })}
-                  required
-                  className="h-12"
+                  onChange={(date) => setNewPayment({ ...newPayment, date })}
+                  placeholder="Tarih seçin"
                 />
               </div>
               <div className="space-y-2">

@@ -3,7 +3,7 @@
 ## Proje Özeti
 Özel ders merkezi yönetim sistemi. Admin ve Teacher rolleri ile öğrenci, öğretmen, ders, ödeme, kamp ve YouTube içerik yönetimi.
 
-## Versiyon: 3.0 (Branş Bazlı Kasa ve Finans Modülü)
+## Versiyon: 3.1 (UI/UX İyileştirmeleri)
 
 ---
 
@@ -32,7 +32,7 @@
 - Ödeme durumu takibi
 - Filtreleme (ay, ödeme günü, ödeme durumu)
 
-### 5. Branş Bazlı Kasa Sistemi ✅ (YENİ - v3.0)
+### 5. Branş Bazlı Kasa Sistemi ✅ (v3.0)
 
 #### 5.1 Kasa Yönetimi
 - **Her branş için ayrı kasa**: Matematik, Fen, Türkçe
@@ -78,7 +78,36 @@
 - İlk öğrenciye tam ücret, diğerlerine 0 yazılıyor
 - Mevcut veriler fix endpoint ile düzeltildi
 
-### 7. Diğer Geliştirmeler ✅
+### 7. UI/UX İyileştirmeleri ✅ (YENİ - v3.1)
+
+#### 7.1 Tarih Formatı Türkçe
+- Tüm tarihler "26 Mart 2026" formatında gösteriliyor
+- `formatDateTurkish()` utility fonksiyonu eklendi
+- Güncellenen sayfalar:
+  - Ödemeler listesi
+  - Öğretmen bakiye sayfası
+  - Öğretmen ders gelir detayı
+  - Grup dersleri listesi
+  - YouTube kazançları
+  - Ders geçmişi listeleri
+
+#### 7.2 DatePicker Bileşeni
+- Takvimli tarih seçim bileşeni (`DatePicker`)
+- Türkçe ay/gün isimleri
+- Güncellenen formlar:
+  - Ödeme girişi/düzenleme formu
+  - Birebir ders ekleme formu (Admin)
+  - Birebir ders ekleme formu (Teacher)
+  - Grup dersi ekleme formu (Admin)
+  - Grup dersi ekleme formu (Teacher)
+
+#### 7.3 Öğrenci Arama Combobox (Ödemeler)
+- **Ödeme formu öğrenci seçimi**: "Öğrenci Adı - Veli Adı" formatında combobox
+- **Combo arama**: Hem öğrenci hem veli ismine göre arama yapılabilir (ör: "eda ayşegül")
+- **Öğrenci filtresi**: Ödemeler listesinde öğrenci bazlı filtreleme
+- Backend'e `student_id` filtre parametresi eklendi
+
+### 8. Diğer Geliştirmeler ✅
 - Test hesap bilgisi login'den kaldırıldı
 - Banka hesabı silme (bakiye kontrolü ile)
 - Ödeme düzenleme/silme

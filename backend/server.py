@@ -1065,6 +1065,7 @@ async def get_payments(
     month: Optional[str] = None,  # Format: "2025-01"
     bank_account_id: Optional[str] = None,
     cashbox_id: Optional[str] = None,
+    student_id: Optional[str] = None,
     current_user: User = Depends(get_current_user)
 ):
     if current_user.user_type == "admin":
@@ -1082,6 +1083,10 @@ async def get_payments(
         if cashbox_id:
             query["cashbox_id"] = cashbox_id
         
+        # Öğrenci filtresi
+        if student_id:
+            query["student_id"] = student_id
+        
         payments = await db.payments.find(query, {"_id": 0}).to_list(1000)
     else:
         # Teachers only see their payments
@@ -1092,6 +1097,8 @@ async def get_payments(
             query["bank_account_id"] = bank_account_id
         if cashbox_id:
             query["cashbox_id"] = cashbox_id
+        if student_id:
+            query["student_id"] = student_id
         
         payments = await db.payments.find(query, {"_id": 0}).to_list(1000)
     

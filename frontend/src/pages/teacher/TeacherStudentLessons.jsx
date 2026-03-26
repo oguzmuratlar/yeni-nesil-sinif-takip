@@ -6,8 +6,10 @@ import { Button } from '../../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
+import { DatePicker } from '../../components/ui/date-picker';
 import { Plus, Trash2, ArrowLeft, User } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatDateTurkish } from '../../lib/dateUtils';
 
 const TeacherStudentLessons = () => {
   const { id, courseId } = useParams();
@@ -112,12 +114,10 @@ const TeacherStudentLessons = () => {
                 <form onSubmit={handleAddLesson} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="date">Tarih</Label>
-                    <Input
-                      id="date"
-                      type="date"
+                    <DatePicker
                       value={newLesson.date}
-                      onChange={(e) => setNewLesson({ ...newLesson, date: e.target.value })}
-                      required
+                      onChange={(date) => setNewLesson({ ...newLesson, date })}
+                      placeholder="Tarih seçin"
                     />
                   </div>
                   <div className="space-y-2">
@@ -150,7 +150,7 @@ const TeacherStudentLessons = () => {
               {lessons.map((lesson) => (
                 <div key={lesson.id} className="flex items-center justify-between p-6 bg-stone-50 rounded-xl">
                   <div>
-                    <p className="font-semibold text-slate-800 text-lg">{lesson.date}</p>
+                    <p className="font-semibold text-slate-800 text-lg">{formatDateTurkish(lesson.date)}</p>
                     <p className="text-sm text-stone-600">{lesson.number_of_lessons} ders</p>
                   </div>
                   <Button
