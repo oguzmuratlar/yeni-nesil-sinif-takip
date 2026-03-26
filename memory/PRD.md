@@ -248,10 +248,11 @@ group_id: str (optional)  # YENİ - Grup dersi için
 
 ## Son Güncelleme
 - Tarih: 2026-03-26
-- Versiyon: 3.1
-- Değişiklik: Admin Aylık Program özet kartları güncellendi
-  - ❌ "Branş Sayısı" ve "Öğretmen Sayısı" kartları kaldırıldı
-  - ✅ "Öğrenci Sayısı" kartı eklendi
-  - ✅ "Toplam Ciro" kartı eklendi
-  - ✅ "Öğretmen Gideri" kartı eklendi
-  - ✅ "Toplam Kar" kartı eklendi (Ciro - Öğretmen Gideri, negatifse kırmızı)
+- Versiyon: 3.2
+- Değişiklikler:
+  1. Admin Aylık Program özet kartları güncellendi (Öğrenci Sayısı, Toplam Ciro, Öğretmen Gideri, Toplam Kar)
+  2. Kullanıcı Yönetimi sayfası geliştirildi:
+     - Kullanıcı listesi eklendi
+     - Kullanıcı düzenleme özelliği (kullanıcı adı, şifre, tip)
+     - Kullanıcı silme özelliği
+     - Backend API'leri: GET /users, PUT /users/{username}, DELETE /users/{username}

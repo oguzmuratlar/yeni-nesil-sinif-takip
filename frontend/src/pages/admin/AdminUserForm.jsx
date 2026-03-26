@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../../components/layouts/AdminLayout';
 import apiClient from '../../api/axios';
@@ -7,108 +7,399 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { toast } from 'sonner';
+import { Pencil, Trash2, Plus, X, Eye, EyeOff, Users } from 'lucide-react';
 
 const AdminUserForm = () => {
   const navigate = useNavigate();
+  const [users, setUsers] = useState([]);
+  const [teachers, setTeachers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     username: '',
     password: '',
     user_type: 'teacher',
     teacher_id: ''
   });
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
     setLoading(true);
-
     try {
-      await apiClient.post('/auth/register', formData);
-      toast.success('Kullanıcı oluşturuldu');
-      navigate('/admin/dashboard');
+      const [usersRes, teachersRes] = await Promise.all([
+        apiClient.get('/users'),
+        apiClient.get('/teachers')
+      ]);
+      setUsers(usersRes.data);
+      setTeachers(teachersRes.data);
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Kullanıcı oluşturulamadı');
+      toast.error('Veriler yüklenemedi');
     } finally {
       setLoading(false);
     }
   };
 
+  const resetForm = () => {
+    setFormData({
+      username: '',
+      password: '',
+      user_type: 'teacher',
+      teacher_id: ''
+    });
+    setEditingUser(null);
+    setShowForm(false);
+    setShowPassword(false);
+  };
+
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+
+    try {
+      await apiClient.post('/auth/register', formData);
+      toast.success('Kullanıcı oluşturuldu');
+      resetForm();
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Kullanıcı oluşturulamadı');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleUpdate = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+
+    try {
+      const updateData = {
+        username: formData.username,
+        user_type: formData.user_type
+      };
+      
+      // Şifre sadece girilmişse gönder
+      if (formData.password) {
+        updateData.password = formData.password;
+      }
+
+      await apiClient.put(`/users/${editingUser.username}`, updateData);
+      toast.success('Kullanıcı güncellendi');
+      resetForm();
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Güncelleme başarısız');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (username) => {
+    if (!window.confirm(`"${username}" kullanıcısını silmek istediğinize emin misiniz?`)) {
+      return;
+    }
+
+    try {
+      await apiClient.delete(`/users/${username}`);
+      toast.success('Kullanıcı silindi');
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Silme başarısız');
+    }
+  };
+
+  const startEdit = (user) => {
+    setEditingUser(user);
+    setFormData({
+      username: user.username,
+      password: '',
+      user_type: user.user_type,
+      teacher_id: user.teacher_id || ''
+    });
+    setShowForm(true);
+    setShowPassword(false);
+  };
+
+  const getTeacherName = (teacherId) => {
+    const teacher = teachers.find(t => t.id === teacherId);
+    return teacher ? teacher.name : '-';
+  };
+
+  if (loading) {
+    return (
+      <AdminLayout>
+        <div className="text-center py-12">Yükleniyor...</div>
+      </AdminLayout>
+    );
+  }
+
   return (
     <AdminLayout>
-      <div className="max-w-2xl">
-        <div className="mb-8">
-          <h1 className="text-4xl font-extrabold text-slate-800 mb-2" data-testid="user-form-title">
-            Yeni Kullanıcı Ekle
-          </h1>
-          <p className="text-slate-600">Sisteme yeni kullanıcı ekleyin</p>
+      <div>
+        {/* Header */}
+        <div className="mb-6 lg:mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="page-title" data-testid="user-management-title">
+              Kullanıcı Yönetimi
+            </h1>
+            <p className="page-subtitle mt-1">Sistem kullanıcılarını yönetin</p>
+          </div>
+          
+          {!showForm && (
+            <Button
+              onClick={() => setShowForm(true)}
+              className="admin-btn"
+              data-testid="add-user-btn"
+            >
+              <Plus size={18} className="mr-2" />
+              Yeni Kullanıcı
+            </Button>
+          )}
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="admin-card p-8 space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="username">Kullanıcı Adı *</Label>
-              <Input
-                id="username"
-                value={formData.username}
-                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                required
-                data-testid="username-input"
-              />
+        {/* Form */}
+        {showForm && (
+          <div className="admin-card p-6 mb-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-bold text-slate-800">
+                {editingUser ? 'Kullanıcı Düzenle' : 'Yeni Kullanıcı Ekle'}
+              </h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={resetForm}
+                data-testid="close-form-btn"
+              >
+                <X size={20} />
+              </Button>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password">Şifre *</Label>
-              <Input
-                id="password"
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                required
-                data-testid="password-input"
-              />
-            </div>
+            <form onSubmit={editingUser ? handleUpdate : handleCreate} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="username">Kullanıcı Adı *</Label>
+                  <Input
+                    id="username"
+                    value={formData.username}
+                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                    required
+                    data-testid="username-input"
+                    placeholder="Kullanıcı adı girin"
+                  />
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="user_type">Kullanıcı Tipi *</Label>
-              <Select value={formData.user_type} onValueChange={(value) => setFormData({ ...formData, user_type: value })}>
-                <SelectTrigger data-testid="user-type-select">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="teacher">Öğretmen</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">
+                    {editingUser ? 'Yeni Şifre (boş bırakılırsa değişmez)' : 'Şifre *'}
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      required={!editingUser}
+                      data-testid="password-input"
+                      placeholder={editingUser ? '••••••••' : 'Şifre girin'}
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                </div>
 
-            {formData.user_type === 'teacher' && (
-              <div className="p-4 bg-blue-50 rounded-lg">
-                <p className="text-sm text-blue-700">
-                  Not: Öğretmen kullanıcısı için önce öğretmen kaydı oluşturun, sonra buradan kullanıcı oluşturup öğretmen ID'si ile eşleştirin.
-                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="user_type">Kullanıcı Tipi *</Label>
+                  <Select 
+                    value={formData.user_type} 
+                    onValueChange={(value) => setFormData({ ...formData, user_type: value })}
+                  >
+                    <SelectTrigger data-testid="user-type-select">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="teacher">Öğretmen</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {formData.user_type === 'teacher' && !editingUser && (
+                  <div className="space-y-2">
+                    <Label htmlFor="teacher_id">Bağlı Öğretmen</Label>
+                    <Select 
+                      value={formData.teacher_id || "none"} 
+                      onValueChange={(value) => setFormData({ ...formData, teacher_id: value === "none" ? "" : value })}
+                    >
+                      <SelectTrigger data-testid="teacher-select">
+                        <SelectValue placeholder="Öğretmen seçin (opsiyonel)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Seçilmedi</SelectItem>
+                        {teachers.map(t => (
+                          <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
-            )}
+
+              {formData.user_type === 'teacher' && !editingUser && (
+                <div className="p-4 bg-blue-50 rounded-lg">
+                  <p className="text-sm text-blue-700">
+                    Not: Öğretmen kullanıcısı oluşturmadan önce öğretmen kaydının oluşturulmuş olması gerekir.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex items-center gap-3 pt-2">
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                  data-testid="save-user-btn"
+                  className="admin-btn"
+                >
+                  {submitting ? 'Kaydediliyor...' : (editingUser ? 'Güncelle' : 'Kullanıcı Oluştur')}
+                </Button>
+                <Button
+                  type="button"
+                  onClick={resetForm}
+                  variant="outline"
+                  data-testid="cancel-btn"
+                >
+                  İptal
+                </Button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* User List */}
+        <div className="admin-card overflow-hidden">
+          <div className="p-4 border-b border-slate-200 bg-slate-50">
+            <div className="flex items-center gap-2">
+              <Users size={20} className="text-slate-600" />
+              <h2 className="font-semibold text-slate-800">Kullanıcılar ({users.length})</h2>
+            </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            <Button
-              type="submit"
-              disabled={loading}
-              data-testid="save-user-btn"
-              className="admin-btn"
-            >
-              {loading ? 'Kaydediliyor...' : 'Kullanıcı Oluştur'}
-            </Button>
-            <Button
-              type="button"
-              onClick={() => navigate('/admin/dashboard')}
-              variant="outline"
-              data-testid="cancel-btn"
-            >
-              İptal
-            </Button>
-          </div>
-        </form>
+          {users.length === 0 ? (
+            <div className="p-8 text-center text-slate-500">
+              Henüz kullanıcı bulunmuyor
+            </div>
+          ) : (
+            <>
+              {/* Mobile View */}
+              <div className="lg:hidden divide-y divide-slate-100">
+                {users.map((user) => (
+                  <div key={user.username} className="p-4" data-testid={`user-row-${user.username}`}>
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="font-semibold text-slate-800">{user.username}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            user.user_type === 'admin' 
+                              ? 'bg-purple-100 text-purple-700' 
+                              : 'bg-blue-100 text-blue-700'
+                          }`}>
+                            {user.user_type === 'admin' ? 'Admin' : 'Öğretmen'}
+                          </span>
+                          {user.teacher_id && (
+                            <span className="text-xs text-slate-500">
+                              {getTeacherName(user.teacher_id)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => startEdit(user)}
+                          data-testid={`edit-user-${user.username}`}
+                        >
+                          <Pencil size={16} className="text-blue-600" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(user.username)}
+                          data-testid={`delete-user-${user.username}`}
+                        >
+                          <Trash2 size={16} className="text-red-600" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop View */}
+              <div className="hidden lg:block">
+                <table className="w-full">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      <th className="text-left py-3 px-4 font-semibold text-slate-700">Kullanıcı Adı</th>
+                      <th className="text-left py-3 px-4 font-semibold text-slate-700">Tip</th>
+                      <th className="text-left py-3 px-4 font-semibold text-slate-700">Bağlı Öğretmen</th>
+                      <th className="text-right py-3 px-4 font-semibold text-slate-700">İşlemler</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {users.map((user) => (
+                      <tr key={user.username} className="hover:bg-slate-50" data-testid={`user-row-${user.username}`}>
+                        <td className="py-3 px-4 font-medium text-slate-800">{user.username}</td>
+                        <td className="py-3 px-4">
+                          <span className={`text-xs px-2 py-1 rounded-full ${
+                            user.user_type === 'admin' 
+                              ? 'bg-purple-100 text-purple-700' 
+                              : 'bg-blue-100 text-blue-700'
+                          }`}>
+                            {user.user_type === 'admin' ? 'Admin' : 'Öğretmen'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-slate-600">
+                          {user.teacher_id ? getTeacherName(user.teacher_id) : '-'}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => startEdit(user)}
+                              data-testid={`edit-user-${user.username}`}
+                            >
+                              <Pencil size={16} className="text-blue-600" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDelete(user.username)}
+                              data-testid={`delete-user-${user.username}`}
+                            >
+                              <Trash2 size={16} className="text-red-600" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </AdminLayout>
   );

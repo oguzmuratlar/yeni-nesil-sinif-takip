@@ -538,6 +538,20 @@ async def register_user(user_data: UserCreate, current_user: User = Depends(get_
     await db.users.insert_one(doc)
     return user
 
+@api_router.get("/users")
+async def get_all_users(current_user: User = Depends(get_current_user)):
+    """Tüm kullanıcıları listele"""
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can view users")
+    
+    users = []
+    async for user in db.users.find({}, {"_id": 0, "password_hash": 0}):
+        if isinstance(user.get('created_at'), str):
+            user['created_at'] = datetime.fromisoformat(user['created_at'])
+        users.append(user)
+    
+    return users
+
 @api_router.get("/users/by-teacher/{teacher_id}")
 async def get_user_by_teacher(teacher_id: str, current_user: User = Depends(get_current_user)):
     """Öğretmene bağlı kullanıcı bilgilerini getir"""
@@ -588,6 +602,57 @@ async def update_user_by_teacher(teacher_id: str, user_data: UserUpdate, current
         await db.users.update_one({"teacher_id": teacher_id}, {"$set": update_data})
     
     return {"message": "Kullanıcı bilgileri güncellendi"}
+
+@api_router.put("/users/{username}")
+async def update_user(username: str, user_data: UserUpdate, current_user: User = Depends(get_current_user)):
+    """Kullanıcı bilgilerini güncelle"""
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can update users")
+    
+    user = await db.users.find_one({"username": username})
+    if not user:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+    
+    # Admin kendi kendini silememeli
+    if username == current_user.username and user_data.user_type and user_data.user_type != "admin":
+        raise HTTPException(status_code=400, detail="Kendi admin yetkilerinizi kaldıramazsınız")
+    
+    update_data = {}
+    
+    if user_data.username and user_data.username != username:
+        existing = await db.users.find_one({"username": user_data.username})
+        if existing:
+            raise HTTPException(status_code=400, detail="Bu kullanıcı adı zaten kullanılıyor")
+        update_data["username"] = user_data.username
+    
+    if user_data.password:
+        update_data["password_hash"] = get_password_hash(user_data.password)
+    
+    if user_data.user_type:
+        update_data["user_type"] = user_data.user_type
+    
+    if update_data:
+        await db.users.update_one({"username": username}, {"$set": update_data})
+    
+    return {"message": "Kullanıcı güncellendi"}
+
+@api_router.delete("/users/{username}")
+async def delete_user(username: str, current_user: User = Depends(get_current_user)):
+    """Kullanıcı sil"""
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can delete users")
+    
+    # Admin kendi kendini silememeli
+    if username == current_user.username:
+        raise HTTPException(status_code=400, detail="Kendi hesabınızı silemezsiniz")
+    
+    user = await db.users.find_one({"username": username})
+    if not user:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+    
+    await db.users.delete_one({"username": username})
+    
+    return {"message": "Kullanıcı silindi"}
 
 # ============= STUDENT ROUTES =============
 
