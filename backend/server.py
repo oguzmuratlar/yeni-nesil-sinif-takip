@@ -1868,7 +1868,8 @@ async def get_monthly_program_detailed(month: str, current_user: User = Depends(
             "payment_day": student.get("payment_freq", ""),  # Öğrencinin ödeme günü (profilden)
             "total_payment": total_student_payment,
             "branch_details": branch_details,
-            "teacher_earnings": teacher_earnings
+            "teacher_earnings": teacher_earnings,
+            "price_overrides": note_data.get("price_overrides", {})
         })
     
     # Öğretmen toplamları
@@ -1892,6 +1893,7 @@ async def update_monthly_program_note(
     month: str,
     note: Optional[str] = None,
     payment_status: Optional[str] = None,
+    price_overrides: Optional[str] = None,
     current_user: User = Depends(get_current_user)
 ):
     """Aylık program notunu güncelle veya oluştur"""
@@ -1907,6 +1909,13 @@ async def update_monthly_program_note(
         update_data["note"] = note
     if payment_status is not None:
         update_data["payment_status"] = payment_status
+    if price_overrides is not None:
+        # price_overrides JSON string olarak gelir: {"Matematik": 1500, "Türkçe": 800}
+        import json
+        try:
+            update_data["price_overrides"] = json.loads(price_overrides) if price_overrides else {}
+        except:
+            update_data["price_overrides"] = {}
     
     if existing:
         await db.monthly_program_notes.update_one(

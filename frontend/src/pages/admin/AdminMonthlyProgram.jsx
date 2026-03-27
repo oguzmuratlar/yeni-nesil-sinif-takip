@@ -70,6 +70,23 @@ const AdminMonthlyProgram = () => {
     [selectedMonth]
   );
 
+  // Fiyat override kaydetme
+  const savePriceOverride = useCallback(
+    debounce(async (studentId, priceOverrides) => {
+      try {
+        const params = new URLSearchParams();
+        params.append('month', selectedMonth);
+        params.append('price_overrides', JSON.stringify(priceOverrides));
+        
+        await apiClient.put(`/monthly-program-notes/${studentId}?${params.toString()}`);
+        toast.success('Tutar kaydedildi', { duration: 1000 });
+      } catch (error) {
+        toast.error('Kaydetme başarısız');
+      }
+    }, 500),
+    [selectedMonth]
+  );
+
   const handleNoteChange = (studentId, field, value) => {
     setProgramData(prev => ({
       ...prev,
@@ -78,6 +95,51 @@ const AdminMonthlyProgram = () => {
       )
     }));
     saveNote(studentId, field, value);
+  };
+
+  // Fiyat override değişikliği
+  const handlePriceOverrideChange = (studentId, branchName, value) => {
+    setProgramData(prev => {
+      const updatedStudents = prev.students.map(s => {
+        if (s.student_id === studentId) {
+          const newOverrides = { ...(s.price_overrides || {}) };
+          if (value === '' || value === null) {
+            delete newOverrides[branchName];
+          } else {
+            newOverrides[branchName] = parseFloat(value) || 0;
+          }
+          return { ...s, price_overrides: newOverrides };
+        }
+        return s;
+      });
+      return { ...prev, students: updatedStudents };
+    });
+    
+    // Override'ları kaydet
+    const student = programData.students.find(s => s.student_id === studentId);
+    const newOverrides = { ...(student?.price_overrides || {}) };
+    if (value === '' || value === null) {
+      delete newOverrides[branchName];
+    } else {
+      newOverrides[branchName] = parseFloat(value) || 0;
+    }
+    savePriceOverride(studentId, newOverrides);
+  };
+
+  // Öğrencinin toplam ödemesini hesapla (override'ları dikkate alarak)
+  const calculateStudentTotal = (student) => {
+    let total = 0;
+    const branches = programData?.branches || [];
+    
+    for (const branch of branches) {
+      const detail = student.branch_details?.[branch];
+      if (detail) {
+        // Override varsa onu kullan, yoksa hesaplanan değeri
+        const override = student.price_overrides?.[branch];
+        total += override !== undefined ? override : (detail.total || 0);
+      }
+    }
+    return total;
   };
 
   // Benzersiz ödeme günleri listesi
@@ -119,7 +181,7 @@ const AdminMonthlyProgram = () => {
     return true;
   }) || [];
 
-  const grandTotal = filteredStudents.reduce((sum, s) => sum + (s.total_payment || 0), 0);
+  const grandTotal = filteredStudents.reduce((sum, s) => sum + calculateStudentTotal(s), 0);
 
   // Toplam öğretmen gideri
   const totalTeacherExpense = useMemo(() => {
@@ -342,7 +404,7 @@ const AdminMonthlyProgram = () => {
                         </div>
                       </div>
                       <div className="flex flex-col items-end ml-3">
-                        <p className="font-bold text-green-600">{student.total_payment?.toFixed(0) || '0'} ₺</p>
+                        <p className="font-bold text-green-600">{calculateStudentTotal(student).toFixed(0)} ₺</p>
                         {expandedStudent === student.student_id ? (
                           <ChevronUp size={20} className="text-slate-400 mt-2" />
                         ) : (
@@ -381,10 +443,12 @@ const AdminMonthlyProgram = () => {
                       {programData?.branches?.map(branch => {
                         const detail = student.branch_details?.[branch];
                         if (!detail || !detail.total) return null;
+                        const hasOverride = student.price_overrides?.[branch] !== undefined;
+                        const displayTotal = hasOverride ? student.price_overrides[branch] : detail.total;
                         return (
                           <div key={branch} className="bg-white p-3 rounded-lg">
                             <p className="text-sm font-semibold text-blue-700 mb-2">{branch}</p>
-                            <div className="grid grid-cols-3 gap-2 text-xs">
+                            <div className="grid grid-cols-4 gap-2 text-xs">
                               <div>
                                 <span className="text-slate-500">Tarih:</span>
                                 <p className="text-slate-700">{detail.dates || '-'}</p>
@@ -394,8 +458,18 @@ const AdminMonthlyProgram = () => {
                                 <p className="text-slate-700">{detail.unit_price}₺</p>
                               </div>
                               <div>
-                                <span className="text-slate-500">Toplam:</span>
-                                <p className="font-semibold text-blue-600">{detail.total}₺</p>
+                                <span className="text-slate-500">Hesaplanan:</span>
+                                <p className={`${hasOverride ? 'line-through text-slate-400' : 'text-slate-700'}`}>{detail.total}₺</p>
+                              </div>
+                              <div>
+                                <span className="text-slate-500">Tutar:</span>
+                                <Input
+                                  type="number"
+                                  value={hasOverride ? student.price_overrides[branch] : ''}
+                                  onChange={(e) => handlePriceOverrideChange(student.student_id, branch, e.target.value)}
+                                  placeholder={`${detail.total}`}
+                                  className={`h-7 text-xs w-20 ${hasOverride ? 'border-orange-400 bg-orange-50' : ''}`}
+                                />
                               </div>
                             </div>
                           </div>
@@ -438,7 +512,7 @@ const AdminMonthlyProgram = () => {
                       <th className="text-right py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">Toplam</th>
                       
                       {programData?.branches?.map(branch => (
-                        <th key={branch} colSpan={3} className="text-center py-3 px-3 font-semibold text-blue-700 bg-blue-50 border-l whitespace-nowrap">
+                        <th key={branch} colSpan={4} className="text-center py-3 px-3 font-semibold text-blue-700 bg-blue-50 border-l whitespace-nowrap">
                           {branch}
                         </th>
                       ))}
@@ -456,7 +530,8 @@ const AdminMonthlyProgram = () => {
                         <React.Fragment key={`sub-${branch}`}>
                           <th className="text-center py-2 px-2 text-xs text-slate-500 border-l">Tarih</th>
                           <th className="text-center py-2 px-2 text-xs text-slate-500">Birim</th>
-                          <th className="text-center py-2 px-2 text-xs text-slate-500">Toplam</th>
+                          <th className="text-center py-2 px-2 text-xs text-slate-500">Hesaplanan</th>
+                          <th className="text-center py-2 px-2 text-xs text-orange-600 bg-orange-50">Özel Tutar</th>
                         </React.Fragment>
                       ))}
                       {programData?.teachers?.map(teacher => (
@@ -496,16 +571,28 @@ const AdminMonthlyProgram = () => {
                           ) : '-'}
                         </td>
                         <td className="py-2 px-2 text-right font-bold text-green-600 whitespace-nowrap">
-                          {student.total_payment?.toFixed(2) || '0'} ₺
+                          {calculateStudentTotal(student).toFixed(0)} ₺
                         </td>
                         
                         {programData?.branches?.map(branch => {
                           const detail = student.branch_details?.[branch];
+                          const hasOverride = student.price_overrides?.[branch] !== undefined;
                           return (
                             <React.Fragment key={`${student.student_id}-${branch}`}>
                               <td className="py-2 px-2 text-xs text-slate-600 border-l whitespace-nowrap">{detail?.dates || '-'}</td>
                               <td className="py-2 px-2 text-xs text-center text-slate-600">{detail?.unit_price ? `${detail.unit_price}₺` : '-'}</td>
-                              <td className="py-2 px-2 text-xs text-center font-medium text-blue-600">{detail?.total ? `${detail.total}₺` : '-'}</td>
+                              <td className={`py-2 px-2 text-xs text-center ${hasOverride ? 'line-through text-slate-400' : 'text-slate-600'}`}>
+                                {detail?.total ? `${detail.total}₺` : '-'}
+                              </td>
+                              <td className="py-2 px-2">
+                                <Input
+                                  type="number"
+                                  value={hasOverride ? student.price_overrides[branch] : ''}
+                                  onChange={(e) => handlePriceOverrideChange(student.student_id, branch, e.target.value)}
+                                  placeholder={detail?.total ? `${detail.total}` : '-'}
+                                  className={`w-16 h-7 text-xs text-center ${hasOverride ? 'border-orange-400 bg-orange-50' : ''}`}
+                                />
+                              </td>
                             </React.Fragment>
                           );
                         })}
