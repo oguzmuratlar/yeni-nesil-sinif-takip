@@ -1,6 +1,17 @@
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
+// Production'da aynı origin kullan, development'ta .env'den al
+const getBaseUrl = () => {
+  // Eğer custom domain kullanılıyorsa (production), aynı origin'i kullan
+  if (window.location.hostname !== 'localhost' && 
+      !window.location.hostname.includes('preview.emergentagent.com')) {
+    return window.location.origin + '/api';
+  }
+  // Preview veya development ortamında .env'den al
+  return (process.env.REACT_APP_BACKEND_URL || '') + '/api';
+};
+
+const API_URL = getBaseUrl();
 
 const apiClient = axios.create({
   baseURL: API_URL,

@@ -53,7 +53,17 @@ import TeacherLessonIncomeDetail from "./pages/teacher/TeacherLessonIncomeDetail
 import TeacherCampIncomeDetail from "./pages/teacher/TeacherCampIncomeDetail";
 import TeacherYoutubeIncomeDetail from "./pages/teacher/TeacherYoutubeIncomeDetail";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+// Production'da aynı origin kullan, development'ta .env'den al
+const getBaseUrl = () => {
+  if (typeof window !== 'undefined' && 
+      window.location.hostname !== 'localhost' && 
+      !window.location.hostname.includes('preview.emergentagent.com')) {
+    return window.location.origin;
+  }
+  return process.env.REACT_APP_BACKEND_URL || '';
+};
+
+const BACKEND_URL = getBaseUrl();
 const API = `${BACKEND_URL}/api`;
 
 function App() {

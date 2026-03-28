@@ -3,7 +3,16 @@ import axios from 'axios';
 
 const AuthContext = createContext(null);
 
-const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
+// Production'da aynı origin kullan, development'ta .env'den al
+const getBaseUrl = () => {
+  if (window.location.hostname !== 'localhost' && 
+      !window.location.hostname.includes('preview.emergentagent.com')) {
+    return window.location.origin + '/api';
+  }
+  return (process.env.REACT_APP_BACKEND_URL || '') + '/api';
+};
+
+const API_URL = getBaseUrl();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
