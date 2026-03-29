@@ -468,8 +468,8 @@ const AdminMonthlyProgram = () => {
                                   type="number"
                                   value={hasOverride ? student.price_overrides[branch] : ''}
                                   onChange={(e) => handlePriceOverrideChange(student.student_id, branch, e.target.value)}
-                                  placeholder={`${detail.total}`}
-                                  className={`h-7 text-xs w-20 ${hasOverride ? 'border-orange-400 bg-orange-50' : ''}`}
+                                  placeholder="-"
+                                  className={`h-7 text-sm w-24 ${hasOverride ? 'border-orange-400 bg-orange-50' : ''}`}
                                 />
                               </div>
                             </div>
@@ -590,8 +590,8 @@ const AdminMonthlyProgram = () => {
                                   type="number"
                                   value={hasOverride ? student.price_overrides[branch] : ''}
                                   onChange={(e) => handlePriceOverrideChange(student.student_id, branch, e.target.value)}
-                                  placeholder={detail?.total ? `${detail.total}` : '-'}
-                                  className={`w-16 h-7 text-xs text-center ${hasOverride ? 'border-orange-400 bg-orange-50' : ''}`}
+                                  placeholder="-"
+                                  className={`w-24 h-7 text-sm text-center ${hasOverride ? 'border-orange-400 bg-orange-50' : ''}`}
                                 />
                               </td>
                             </React.Fragment>
