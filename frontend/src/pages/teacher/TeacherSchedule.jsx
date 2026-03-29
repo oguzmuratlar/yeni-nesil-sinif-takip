@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import TeacherLayout from '../../components/layouts/TeacherLayout';
 import apiClient from '../../api/axios';
 import { useAuth } from '../../contexts/AuthContext';
-import { Calendar, Filter, BookOpen, Users, TrendingUp } from 'lucide-react';
+import { Calendar, Filter, BookOpen, Users, TrendingUp, Video, Tent } from 'lucide-react';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Badge } from '../../components/ui/badge';
 import { formatDateTurkish } from '../../lib/dateUtils';
+import { formatMoney } from '../../lib/utils';
 
 const TeacherSchedule = () => {
   const { user } = useAuth();
@@ -18,6 +19,8 @@ const TeacherSchedule = () => {
   const [groups, setGroups] = useState([]);
   const [teacherPrices, setTeacherPrices] = useState([]);
   const [lessonTypes, setLessonTypes] = useState([]);
+  const [youtubeEarnings, setYoutubeEarnings] = useState([]);
+  const [campEarnings, setCampEarnings] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().substring(0, 7));
 
   const months = [
@@ -43,14 +46,16 @@ const TeacherSchedule = () => {
     
     setLoading(true);
     try {
-      const [plannedRes, studentsRes, branchesRes, coursesRes, groupsRes, pricesRes, typesRes] = await Promise.all([
+      const [plannedRes, studentsRes, branchesRes, coursesRes, groupsRes, pricesRes, typesRes, youtubeRes, campsRes] = await Promise.all([
         apiClient.get('/planned-lessons'),
         apiClient.get('/students'),
         apiClient.get('/branches'),
         apiClient.get('/student-courses'),
         apiClient.get('/student-groups'),
         apiClient.get(`/teacher-prices?teacher_id=${user.teacher_id}`),
-        apiClient.get('/lesson-types')
+        apiClient.get('/lesson-types'),
+        apiClient.get('/youtube-contents'),
+        apiClient.get('/camps?include_completed=true')
       ]);
       
       setStudents(studentsRes.data);
@@ -59,6 +64,14 @@ const TeacherSchedule = () => {
       setGroups(groupsRes.data);
       setTeacherPrices(pricesRes.data);
       setLessonTypes(typesRes.data);
+      
+      // YouTube kazançları (öğretmene ait)
+      const teacherYoutube = youtubeRes.data.filter(y => y.teacher_id === user.teacher_id);
+      setYoutubeEarnings(teacherYoutube);
+      
+      // Kamp kazançları (öğretmene ait)
+      const teacherCamps = campsRes.data.filter(c => c.teacher_id === user.teacher_id);
+      setCampEarnings(teacherCamps);
       
       // Öğretmene ait kursları filtrele
       const teacherCourseIds = coursesRes.data
@@ -106,6 +119,26 @@ const TeacherSchedule = () => {
 
   // Seçili aya göre filtrele
   const filteredLessons = plannedLessons.filter(p => p.month === selectedMonth);
+  
+  // YouTube kazançlarını aya göre filtrele
+  const filteredYoutube = youtubeEarnings.filter(y => {
+    if (!y.created_at) return false;
+    const createdMonth = y.created_at.substring(0, 7);
+    return createdMonth === selectedMonth;
+  });
+  
+  // Kamp kazançlarını aya göre filtrele
+  const filteredCamps = campEarnings.filter(c => {
+    if (!c.start_date) return false;
+    const campMonth = c.start_date.substring(0, 7);
+    return campMonth === selectedMonth;
+  });
+  
+  // YouTube toplam kazanç
+  const youtubeTotal = filteredYoutube.reduce((sum, y) => sum + (y.teacher_earning || 0), 0);
+  
+  // Kamp toplam kazanç
+  const campTotal = filteredCamps.reduce((sum, c) => sum + (c.teacher_earning || 0), 0);
 
   // Aylık istatistikleri hesapla
   // KURAL: teacher_prices tablosundan öğretmen ücretini al
@@ -150,6 +183,9 @@ const TeacherSchedule = () => {
   };
 
   const stats = calculateStats();
+  
+  // Aylık toplam kazanç (Ders + YouTube + Kamp)
+  const monthlyTotal = stats.estimatedEarning + youtubeTotal + campTotal;
 
   // Planları öğrencilere göre grupla
   const getEnrichedPlans = () => {
@@ -245,20 +281,41 @@ const TeacherSchedule = () => {
         </div>
 
         {/* Özet Kartları */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="teacher-card p-6 text-center">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+          <div className="teacher-card p-4 text-center">
             <div className="flex items-center justify-center gap-2 mb-2">
-              <BookOpen size={20} className="text-blue-600" />
-              <p className="text-sm text-stone-500">Toplam Planlı Ders</p>
+              <BookOpen size={18} className="text-blue-600" />
+              <p className="text-xs text-stone-500">Planlı Ders</p>
             </div>
-            <p className="text-3xl font-bold text-blue-600">{stats.totalLessons}</p>
+            <p className="text-2xl font-bold text-blue-600">{stats.totalLessons}</p>
           </div>
-          <div className="teacher-card p-6 text-center">
+          <div className="teacher-card p-4 text-center">
             <div className="flex items-center justify-center gap-2 mb-2">
-              <TrendingUp size={20} className="text-green-600" />
-              <p className="text-sm text-stone-500">Tahmini Kazanç</p>
+              <BookOpen size={18} className="text-indigo-600" />
+              <p className="text-xs text-stone-500">Ders Kazancı</p>
             </div>
-            <p className="text-3xl font-bold text-green-600">{stats.estimatedEarning.toFixed(0)} ₺</p>
+            <p className="text-2xl font-bold text-indigo-600">{formatMoney(stats.estimatedEarning, false)} ₺</p>
+          </div>
+          <div className="teacher-card p-4 text-center">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <Video size={18} className="text-red-600" />
+              <p className="text-xs text-stone-500">YouTube</p>
+            </div>
+            <p className="text-2xl font-bold text-red-600">{formatMoney(youtubeTotal, false)} ₺</p>
+          </div>
+          <div className="teacher-card p-4 text-center">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <Tent size={18} className="text-orange-600" />
+              <p className="text-xs text-stone-500">Kamp</p>
+            </div>
+            <p className="text-2xl font-bold text-orange-600">{formatMoney(campTotal, false)} ₺</p>
+          </div>
+          <div className="teacher-card p-4 text-center col-span-2 lg:col-span-1 bg-green-50">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <TrendingUp size={18} className="text-green-600" />
+              <p className="text-xs text-stone-500">Aylık Toplam</p>
+            </div>
+            <p className="text-2xl font-bold text-green-600">{formatMoney(monthlyTotal, false)} ₺</p>
           </div>
         </div>
 

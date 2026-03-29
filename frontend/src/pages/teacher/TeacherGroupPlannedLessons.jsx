@@ -35,6 +35,7 @@ const TeacherGroupPlannedLessons = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
+  const [filterMonth, setFilterMonth] = useState('all');
   const [newPlan, setNewPlan] = useState({
     dates: '',
     number_of_lessons: '',
@@ -241,8 +242,13 @@ const TeacherGroupPlannedLessons = () => {
       }
     });
     
+    // Ay filtresini uygula
+    const filteredPlans = filterMonth === 'all' 
+      ? uniquePlans 
+      : uniquePlans.filter(p => p.month === filterMonth);
+    
     // Aya göre grupla
-    return uniquePlans.reduce((acc, plan) => {
+    return filteredPlans.reduce((acc, plan) => {
       const monthLabel = formatMonthTurkish(plan.month);
       if (!acc[monthLabel]) {
         acc[monthLabel] = [];
@@ -317,7 +323,18 @@ const TeacherGroupPlannedLessons = () => {
         </div>
 
         {/* Add Plan Button */}
-        <div className="flex justify-end mb-6">
+        <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
+          <Select value={filterMonth} onValueChange={setFilterMonth}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Ay Filtresi" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tüm Aylar</SelectItem>
+              {months.map(m => (
+                <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button className="teacher-btn">

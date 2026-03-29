@@ -30,6 +30,7 @@ const TeacherStudentPlannedLessons = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
+  const [filterMonth, setFilterMonth] = useState('all');
   const [newPlanned, setNewPlanned] = useState({
     dates: '',
     number_of_lessons: '',
@@ -181,8 +182,21 @@ const TeacherStudentPlannedLessons = () => {
         </div>
 
         <div className="teacher-card p-8 mb-8">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-slate-800">Planlanmış Dersler</h2>
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-4">
+              <h2 className="text-2xl font-bold text-slate-800">Planlanmış Dersler</h2>
+              <Select value={filterMonth} onValueChange={setFilterMonth}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Ay Filtresi" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tüm Aylar</SelectItem>
+                  {months.map(m => (
+                    <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
                 <Button data-testid="add-planned-lesson-btn" className="teacher-btn">
@@ -250,7 +264,9 @@ const TeacherStudentPlannedLessons = () => {
             <p className="text-stone-600 text-center py-12">Henüz ders planlanmamış</p>
           ) : (
             <div className="space-y-4">
-              {plannedLessons.map((planned) => (
+              {plannedLessons
+                .filter(p => filterMonth === 'all' || p.month === filterMonth)
+                .map((planned) => (
                 <div key={planned.id} className="flex items-center justify-between p-6 bg-stone-50 rounded-xl">
                   <div>
                     <p className="font-semibold text-slate-800 text-lg">{planned.dates} ({planned.month})</p>
@@ -276,6 +292,9 @@ const TeacherStudentPlannedLessons = () => {
                   </div>
                 </div>
               ))}
+              {plannedLessons.filter(p => filterMonth === 'all' || p.month === filterMonth).length === 0 && (
+                <p className="text-stone-600 text-center py-6">Bu ay için plan bulunamadı</p>
+              )}
             </div>
           )}
         </div>

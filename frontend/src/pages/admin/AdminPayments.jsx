@@ -13,7 +13,7 @@ import { DateInput } from '../../components/ui/date-input';
 import { ExpandableText } from '../../components/ui/expandable-text';
 import { Plus, ArrowUpCircle, ArrowDownCircle, Filter, X, Edit, Trash2, Check, ChevronsUpDown, User } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn } from '../../lib/utils';
+import { cn, formatMoney } from '../../lib/utils';
 import { formatDateTurkish } from '../../lib/dateUtils';
 import {
   AlertDialog,
@@ -140,8 +140,27 @@ const AdminPayments = () => {
   const handleSubmitPayment = async (e) => {
     e.preventDefault();
     
-    // Kasa zorunlu kontrolü
-    if (!newPayment.cashbox_id) {
+    // Gelir için validasyonlar
+    if (dialogType === 'income') {
+      // Branş zorunlu
+      if (!newPayment.branch_id) {
+        toast.error('Branş seçimi zorunludur');
+        return;
+      }
+      // Banka zorunlu
+      if (!newPayment.bank_account_id) {
+        toast.error('Banka hesabı seçimi zorunludur');
+        return;
+      }
+      // Kasa otomatik seçilmeli (branştan)
+      if (!newPayment.cashbox_id) {
+        toast.error('Branş seçimi yapınca kasa otomatik belirlenir. Lütfen branş seçin.');
+        return;
+      }
+    }
+    
+    // Gider için kasa zorunlu
+    if (dialogType === 'expense' && !newPayment.cashbox_id) {
       toast.error('Kasa seçimi zorunludur');
       return;
     }
@@ -273,7 +292,7 @@ const AdminPayments = () => {
         </div>
         <div className="flex items-center gap-2">
           <p className={`font-bold text-sm lg:text-base whitespace-nowrap ${isIncome ? 'text-green-600' : 'text-red-600'}`}>
-            {isIncome ? '+' : '-'}{payment.amount.toFixed(2)} ₺
+            {isIncome ? '+' : '-'}{formatMoney(payment.amount)} ₺
           </p>
           <div className="flex gap-1">
             <Button
@@ -316,16 +335,16 @@ const AdminPayments = () => {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 lg:gap-6 mb-6 lg:mb-8">
           <div className="admin-card p-4 lg:p-6">
             <p className="text-xs lg:text-sm text-slate-500 mb-1">Toplam Gelir</p>
-            <p className="text-2xl lg:text-3xl font-bold text-green-600">{totalIncome.toFixed(2)} ₺</p>
+            <p className="text-2xl lg:text-3xl font-bold text-green-600">{formatMoney(totalIncome)} ₺</p>
           </div>
           <div className="admin-card p-4 lg:p-6">
             <p className="text-xs lg:text-sm text-slate-500 mb-1">Toplam Gider</p>
-            <p className="text-2xl lg:text-3xl font-bold text-red-600">{totalExpense.toFixed(2)} ₺</p>
+            <p className="text-2xl lg:text-3xl font-bold text-red-600">{formatMoney(totalExpense)} ₺</p>
           </div>
           <div className="admin-card p-4 lg:p-6">
             <p className="text-xs lg:text-sm text-slate-500 mb-1">Net</p>
             <p className={`text-2xl lg:text-3xl font-bold ${(totalIncome - totalExpense) >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
-              {(totalIncome - totalExpense).toFixed(2)} ₺
+              {formatMoney(totalIncome - totalExpense)} ₺
             </p>
           </div>
         </div>
@@ -520,7 +539,7 @@ const AdminPayments = () => {
               {dialogType === 'income' && (
                 <>
                   <div className="space-y-2">
-                    <Label htmlFor="student">Öğrenci *</Label>
+                    <Label htmlFor="student">Öğrenci (Opsiyonel)</Label>
                     <Popover open={formStudentOpen} onOpenChange={setFormStudentOpen}>
                       <PopoverTrigger asChild>
                         <Button
@@ -550,6 +569,22 @@ const AdminPayments = () => {
                           <CommandList>
                             <CommandEmpty>Öğrenci bulunamadı.</CommandEmpty>
                             <CommandGroup>
+                              <CommandItem
+                                value="none"
+                                onSelect={() => {
+                                  setNewPayment({ ...newPayment, student_id: '' });
+                                  setFormStudentOpen(false);
+                                  setFormStudentSearch('');
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    !newPayment.student_id ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                <span className="text-muted-foreground">Öğrenci Seçme</span>
+                              </CommandItem>
                               {filteredStudentsForForm.slice(0, 50).map((student) => (
                                 <CommandItem
                                   key={student.id}
@@ -579,10 +614,25 @@ const AdminPayments = () => {
                         </Command>
                       </PopoverContent>
                     </Popover>
+                    <p className="text-xs text-slate-500">Öğrenci seçmeden de ödeme kaydedebilirsiniz</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="branch">Branş *</Label>
-                    <Select value={newPayment.branch_id} onValueChange={(value) => setNewPayment({ ...newPayment, branch_id: value })}>
+                    <Select 
+                      value={newPayment.branch_id} 
+                      onValueChange={(value) => {
+                        // Branş seçilince aynı isimli kasayı otomatik seç
+                        const selectedBranch = branches.find(b => b.id === value);
+                        const matchingCashbox = cashboxes.find(c => 
+                          c.name.toLowerCase() === selectedBranch?.name?.toLowerCase()
+                        );
+                        setNewPayment({ 
+                          ...newPayment, 
+                          branch_id: value,
+                          cashbox_id: matchingCashbox?.id || ''
+                        });
+                      }}
+                    >
                       <SelectTrigger className="h-12">
                         <SelectValue placeholder="Branş seçin" />
                       </SelectTrigger>
@@ -592,6 +642,7 @@ const AdminPayments = () => {
                         ))}
                       </SelectContent>
                     </Select>
+                    <p className="text-xs text-slate-500">Branş seçtiğinizde ilgili kasa otomatik seçilir</p>
                   </div>
                 </>
               )}
@@ -661,32 +712,14 @@ const AdminPayments = () => {
                 <p className="text-xs text-muted-foreground">Örnek: 12.02.2025</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="cashbox">Kasa *</Label>
-                <Select 
-                  value={newPayment.cashbox_id} 
-                  onValueChange={(value) => setNewPayment({ ...newPayment, cashbox_id: value })}
-                >
-                  <SelectTrigger className="h-12">
-                    <SelectValue placeholder="Kasa seçin (zorunlu)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {cashboxes.map((cashbox) => (
-                      <SelectItem key={cashbox.id} value={cashbox.id}>
-                        {cashbox.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-slate-500">Kasa seçimi zorunludur</p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="bank_account">Banka Hesabı (Opsiyonel)</Label>
+                <Label htmlFor="bank_account">Banka Hesabı *</Label>
                 <Select 
                   value={newPayment.bank_account_id} 
                   onValueChange={(value) => setNewPayment({ ...newPayment, bank_account_id: value })}
+                  required
                 >
                   <SelectTrigger className="h-12">
-                    <SelectValue placeholder="Banka hesabı seçin" />
+                    <SelectValue placeholder="Banka hesabı seçin (zorunlu)" />
                   </SelectTrigger>
                   <SelectContent>
                     {bankAccounts.map((account) => (
@@ -697,6 +730,15 @@ const AdminPayments = () => {
                   </SelectContent>
                 </Select>
               </div>
+              {/* Kasa otomatik seçilir - branş bazlı */}
+              {newPayment.cashbox_id && (
+                <div className="p-3 bg-blue-50 rounded-lg">
+                  <p className="text-sm text-blue-700">
+                    Kasa: <strong>{cashboxes.find(c => c.id === newPayment.cashbox_id)?.name || 'Seçili'}</strong>
+                    <span className="text-xs block mt-1 text-blue-600">(Branşa göre otomatik seçildi)</span>
+                  </p>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3 pt-2">
                 <Button type="button" variant="outline" onClick={closeDialog} className="h-12">
                   İptal

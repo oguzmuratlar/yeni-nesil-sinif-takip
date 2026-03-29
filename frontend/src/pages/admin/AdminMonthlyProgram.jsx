@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Input } from '../../components/ui/input';
 import { Button } from '../../components/ui/button';
 import { debounce } from 'lodash';
+import { formatMoney } from '../../lib/utils';
 
 const AdminMonthlyProgram = () => {
   const [programData, setProgramData] = useState(null);
@@ -352,16 +353,16 @@ const AdminMonthlyProgram = () => {
           </div>
           <div className="admin-card p-3 lg:p-4" data-testid="total-revenue-card">
             <p className="text-xs lg:text-sm text-slate-500">Toplam Ciro</p>
-            <p className="text-xl lg:text-2xl font-bold text-green-600">{grandTotal.toFixed(0)} ₺</p>
+            <p className="text-xl lg:text-2xl font-bold text-green-600">{formatMoney(grandTotal, false)} ₺</p>
           </div>
           <div className="admin-card p-3 lg:p-4" data-testid="total-expense-card">
             <p className="text-xs lg:text-sm text-slate-500">Öğretmen Gideri</p>
-            <p className="text-xl lg:text-2xl font-bold text-orange-600">{totalTeacherExpense.toFixed(0)} ₺</p>
+            <p className="text-xl lg:text-2xl font-bold text-orange-600">{formatMoney(totalTeacherExpense, false)} ₺</p>
           </div>
           <div className="admin-card p-3 lg:p-4" data-testid="total-profit-card">
             <p className="text-xs lg:text-sm text-slate-500">Toplam Kar</p>
             <p className={`text-xl lg:text-2xl font-bold ${totalProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-              {totalProfit.toFixed(0)} ₺
+              {formatMoney(totalProfit, false)} ₺
             </p>
           </div>
         </div>
@@ -404,7 +405,7 @@ const AdminMonthlyProgram = () => {
                         </div>
                       </div>
                       <div className="flex flex-col items-end ml-3">
-                        <p className="font-bold text-green-600">{calculateStudentTotal(student).toFixed(0)} ₺</p>
+                        <p className="font-bold text-green-600">{formatMoney(calculateStudentTotal(student), false)} ₺</p>
                         {expandedStudent === student.student_id ? (
                           <ChevronUp size={20} className="text-slate-400 mt-2" />
                         ) : (
@@ -484,7 +485,7 @@ const AdminMonthlyProgram = () => {
                             {Object.entries(student.teacher_earnings).map(([teacher, earning]) => (
                               <div key={teacher} className="flex justify-between text-sm">
                                 <span className="text-slate-600">{teacher}:</span>
-                                <span className="font-semibold text-emerald-600">{earning.toFixed(0)}₺</span>
+                                <span className="font-semibold text-emerald-600">{formatMoney(earning, false)}₺</span>
                               </div>
                             ))}
                           </div>
@@ -571,7 +572,7 @@ const AdminMonthlyProgram = () => {
                           ) : '-'}
                         </td>
                         <td className="py-2 px-2 text-right font-bold text-green-600 whitespace-nowrap">
-                          {calculateStudentTotal(student).toFixed(0)} ₺
+                          {formatMoney(calculateStudentTotal(student), false)} ₺
                         </td>
                         
                         {programData?.branches?.map(branch => {
@@ -580,9 +581,9 @@ const AdminMonthlyProgram = () => {
                           return (
                             <React.Fragment key={`${student.student_id}-${branch}`}>
                               <td className="py-2 px-2 text-xs text-slate-600 border-l whitespace-nowrap">{detail?.dates || '-'}</td>
-                              <td className="py-2 px-2 text-xs text-center text-slate-600">{detail?.unit_price ? `${detail.unit_price}₺` : '-'}</td>
+                              <td className="py-2 px-2 text-xs text-center text-slate-600">{detail?.unit_price ? `${formatMoney(detail.unit_price, false)}₺` : '-'}</td>
                               <td className={`py-2 px-2 text-xs text-center ${hasOverride ? 'line-through text-slate-400' : 'text-slate-600'}`}>
-                                {detail?.total ? `${detail.total}₺` : '-'}
+                                {detail?.total ? `${formatMoney(detail.total, false)}₺` : '-'}
                               </td>
                               <td className="py-2 px-2">
                                 <Input
@@ -601,7 +602,7 @@ const AdminMonthlyProgram = () => {
                           const earning = student.teacher_earnings?.[teacher.name];
                           return (
                             <td key={`${student.student_id}-t-${teacher.id}`} className="py-2 px-2 text-xs text-center font-medium text-emerald-600 border-l">
-                              {earning ? `${earning.toFixed(2)}₺` : '-'}
+                              {earning ? `${formatMoney(earning, false)}₺` : '-'}
                             </td>
                           );
                         })}
@@ -622,7 +623,7 @@ const AdminMonthlyProgram = () => {
               {Object.entries(programData.teacher_totals).map(([teacherName, total]) => (
                 <div key={teacherName} className="p-3 lg:p-4 bg-emerald-50 rounded-lg">
                   <p className="text-xs lg:text-sm text-slate-600 truncate">{teacherName}</p>
-                  <p className="text-lg lg:text-xl font-bold text-emerald-600">{total.toFixed(0)} ₺</p>
+                  <p className="text-lg lg:text-xl font-bold text-emerald-600">{formatMoney(total, false)} ₺</p>
                 </div>
               ))}
             </div>

@@ -111,6 +111,13 @@ const TeacherGroupLessons = () => {
     return acc;
   }, {});
 
+  // Toplam ders sayısı (benzersiz tarih başına bir kez sayılır)
+  const totalLessons = Object.keys(lessonsByDate).reduce((sum, date) => {
+    // Her tarihte en az bir ders kaydı varsa, ilkinin ders sayısını al
+    const firstLesson = lessonsByDate[date]?.[0];
+    return sum + (firstLesson?.number_of_lessons || 0);
+  }, 0);
+
   if (loading) {
     return (
       <TeacherLayout>
@@ -171,6 +178,20 @@ const TeacherGroupLessons = () => {
           <p className="text-sm text-slate-500 mt-3">
             Gruba ders girdiğinizde, yukarıdaki tüm öğrencilere otomatik kaydedilir.
           </p>
+        </div>
+
+        {/* Toplam Ders Sayısı */}
+        <div className="teacher-card p-6 mb-6 bg-blue-50">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-slate-600">Toplam Ders Sayısı</p>
+              <p className="text-3xl font-bold text-blue-600">{totalLessons}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm text-slate-600">Ders Günü</p>
+              <p className="text-3xl font-bold text-slate-700">{Object.keys(lessonsByDate).length}</p>
+            </div>
+          </div>
         </div>
 
         {/* Add Lesson Button */}

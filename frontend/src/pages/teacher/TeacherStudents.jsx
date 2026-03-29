@@ -5,7 +5,7 @@ import apiClient from '../../api/axios';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-import { Book, Calendar, Search, User, Users, ChevronRight } from 'lucide-react';
+import { Book, Calendar, Search, User, Users, ChevronRight, ClipboardList, Edit } from 'lucide-react';
 import { toast } from 'sonner';
 
 const TeacherStudents = () => {
@@ -332,14 +332,43 @@ const TeacherStudents = () => {
                       </Button>
                     </>
                   ) : (
-                    <Button
-                      onClick={handleLessonEntry}
-                      data-testid="view-profile-btn"
-                      className="teacher-btn"
-                    >
-                      <User size={20} className="mr-2" />
-                      Profil ve Dersler
-                    </Button>
+                    <>
+                      <Button
+                        onClick={() => navigate(`/teacher/students/${selectedItem.data.id}/profile`)}
+                        data-testid="view-profile-btn"
+                        variant="outline"
+                        className="rounded-full"
+                      >
+                        <User size={18} className="mr-2" />
+                        Profil
+                      </Button>
+                      <Button
+                        onClick={() => navigate(`/teacher/students/${selectedItem.data.id}/lessons`)}
+                        data-testid="view-lessons-btn"
+                        variant="outline"
+                        className="rounded-full"
+                      >
+                        <ClipboardList size={18} className="mr-2" />
+                        Dersler
+                      </Button>
+                      <Button
+                        onClick={() => navigate(`/teacher/students/${selectedItem.data.id}/planned-lessons`)}
+                        data-testid="lesson-planning-btn"
+                        variant="outline"
+                        className="rounded-full"
+                      >
+                        <Calendar size={18} className="mr-2" />
+                        Ders Planlama
+                      </Button>
+                      <Button
+                        onClick={() => navigate(`/teacher/students/${selectedItem.data.id}/lesson-entry`)}
+                        data-testid="lesson-entry-btn"
+                        className="teacher-btn"
+                      >
+                        <Edit size={18} className="mr-2" />
+                        Ders Girişi
+                      </Button>
+                    </>
                   )}
                   <Button
                     onClick={() => setSelectedItem(null)}
