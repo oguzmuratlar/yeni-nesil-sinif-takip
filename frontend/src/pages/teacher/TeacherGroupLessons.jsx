@@ -66,7 +66,9 @@ const TeacherGroupLessons = () => {
         .map(c => c.id);
       
       const groupLessons = lessonsRes.data.filter(l => groupCourseIds.includes(l.student_course_id));
-      setLessons(groupLessons);
+      // En son tarihli ders en üstte olacak şekilde sırala
+      const sortedLessons = groupLessons.sort((a, b) => new Date(b.date) - new Date(a.date));
+      setLessons(sortedLessons);
     } catch (error) {
       toast.error('Veriler yüklenemedi');
     } finally {

@@ -36,7 +36,9 @@ const TeacherStudentLessons = () => {
       setStudent(studentRes.data);
       const foundCourse = courseRes.data.find(c => c.id === courseId);
       setCourse(foundCourse);
-      setLessons(lessonsRes.data);
+      // En son tarihli ders en üstte olacak şekilde sırala
+      const sortedLessons = lessonsRes.data.sort((a, b) => new Date(b.date) - new Date(a.date));
+      setLessons(sortedLessons);
       if (foundCourse) {
         const foundBranch = branchesRes.data.find(b => b.id === foundCourse.branch_id);
         setBranch(foundBranch);
