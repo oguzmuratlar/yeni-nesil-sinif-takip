@@ -9,6 +9,7 @@ import { Label } from '../../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { ArrowLeft, Plus } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatMoney } from '../../lib/utils';
 
 const AdminTeacherBalance = () => {
   const { id } = useParams();
@@ -90,15 +91,15 @@ const AdminTeacherBalance = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="admin-card p-6">
             <p className="text-sm text-slate-500 mb-1">Toplam Kazanç</p>
-            <p className="text-3xl font-bold text-blue-600">{balanceData.total_earnings.toFixed(2)} ₺</p>
+            <p className="text-3xl font-bold text-blue-600">{formatMoney(balanceData.total_earnings)} ₺</p>
           </div>
           <div className="admin-card p-6">
             <p className="text-sm text-slate-500 mb-1">Yapılan Ödeme</p>
-            <p className="text-3xl font-bold text-green-600">{balanceData.total_paid.toFixed(2)} ₺</p>
+            <p className="text-3xl font-bold text-green-600">{formatMoney(balanceData.total_paid)} ₺</p>
           </div>
           <div className="admin-card p-6">
             <p className="text-sm text-slate-500 mb-1">Kalan Bakiye</p>
-            <p className="text-3xl font-bold text-orange-600">{balanceData.balance.toFixed(2)} ₺</p>
+            <p className="text-3xl font-bold text-orange-600">{formatMoney(balanceData.balance)} ₺</p>
           </div>
         </div>
 
@@ -172,7 +173,7 @@ const AdminTeacherBalance = () => {
                     <p className="font-semibold text-slate-800">{payment.date}</p>
                     <p className="text-sm text-slate-600">{payment.description || 'Öğretmen ödemesi'}</p>
                   </div>
-                  <p className="font-bold text-green-600">{payment.amount.toFixed(2)} ₺</p>
+                  <p className="font-bold text-green-600">{formatMoney(payment.amount)} ₺</p>
                 </div>
               ))}
             </div>

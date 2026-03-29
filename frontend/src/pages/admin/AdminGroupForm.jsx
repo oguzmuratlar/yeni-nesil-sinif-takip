@@ -56,7 +56,13 @@ const AdminGroupForm = () => {
       const response = await apiClient.get('/student-groups');
       const group = response.data.find(g => g.id === id);
       if (group) {
-        setFormData(group);
+        setFormData({
+          name: group.name || '',
+          branch_id: group.branch_id || '',
+          level: group.level || '',
+          teacher_id: group.teacher_id || '',
+          student_ids: group.student_ids || []
+        });
       }
     } catch (error) {
       toast.error('Grup bilgileri yüklenemedi');
@@ -129,11 +135,12 @@ const AdminGroupForm = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="branch">Branş *</Label>
-                <Select value={formData.branch_id} onValueChange={(value) => setFormData({ ...formData, branch_id: value })}>
+                <Select value={formData.branch_id || 'none'} onValueChange={(value) => setFormData({ ...formData, branch_id: value === 'none' ? '' : value })}>
                   <SelectTrigger data-testid="branch-select">
                     <SelectValue placeholder="Branş seçin" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="none">Branş seçin</SelectItem>
                     {branches.map((branch) => (
                       <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>
                     ))}
@@ -143,11 +150,12 @@ const AdminGroupForm = () => {
 
               <div className="space-y-2">
                 <Label htmlFor="level">Sınıf *</Label>
-                <Select value={formData.level} onValueChange={(value) => setFormData({ ...formData, level: value })}>
+                <Select value={formData.level ? String(formData.level) : 'none'} onValueChange={(value) => setFormData({ ...formData, level: value === 'none' ? '' : value })}>
                   <SelectTrigger data-testid="level-select">
                     <SelectValue placeholder="Sınıf seçin" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="none">Sınıf seçin</SelectItem>
                     <SelectItem value="5">5. Sınıf</SelectItem>
                     <SelectItem value="6">6. Sınıf</SelectItem>
                     <SelectItem value="7">7. Sınıf</SelectItem>
@@ -159,11 +167,12 @@ const AdminGroupForm = () => {
 
             <div className="space-y-2">
               <Label htmlFor="teacher">Öğretmen (Opsiyonel)</Label>
-              <Select value={formData.teacher_id} onValueChange={(value) => setFormData({ ...formData, teacher_id: value })}>
+              <Select value={formData.teacher_id || 'none'} onValueChange={(value) => setFormData({ ...formData, teacher_id: value === 'none' ? '' : value })}>
                 <SelectTrigger>
                   <SelectValue placeholder="Öğretmen seçin" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="none">Seçilmedi</SelectItem>
                   {teachers.map((teacher) => (
                     <SelectItem key={teacher.id} value={teacher.id}>{teacher.name}</SelectItem>
                   ))}

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../../components/layouts/AdminLayout';
-import { Users, GraduationCap, CreditCard, TrendingUp, ArrowRight, Calendar } from 'lucide-react';
+import { Users, GraduationCap, CreditCard, TrendingUp, ArrowRight, Calendar, Landmark } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import {
   AlertDialog,
@@ -15,11 +15,26 @@ import {
 } from '../../components/ui/alert-dialog';
 import apiClient from '../../api/axios';
 import { toast } from 'sonner';
+import { formatMoney } from '../../lib/utils';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const [yearEndDialogOpen, setYearEndDialogOpen] = useState(false);
   const [yearEndLoading, setYearEndLoading] = useState(false);
+  const [bankAccounts, setBankAccounts] = useState([]);
+
+  useEffect(() => {
+    fetchBankAccounts();
+  }, []);
+
+  const fetchBankAccounts = async () => {
+    try {
+      const response = await apiClient.get('/bank-accounts');
+      setBankAccounts(response.data);
+    } catch (error) {
+      console.error('Banka hesapları yüklenemedi');
+    }
+  };
 
   const cards = [
     {
@@ -109,30 +124,28 @@ const AdminDashboard = () => {
 
         <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="admin-card p-8">
-            <h3 className="text-2xl font-bold text-slate-800 mb-4">Hızlı İşlemler</h3>
-            <div className="space-y-3">
-              <button
-                onClick={() => navigate('/admin/students/new')}
-                data-testid="quick-add-student-btn"
-                className="w-full text-left px-4 py-3 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors text-blue-700 font-medium"
-              >
-                + Yeni Öğrenci Ekle
-              </button>
-              <button
-                onClick={() => navigate('/admin/teachers/new')}
-                data-testid="quick-add-teacher-btn"
-                className="w-full text-left px-4 py-3 bg-orange-50 hover:bg-orange-100 rounded-lg transition-colors text-orange-700 font-medium"
-              >
-                + Yeni Öğretmen Ekle
-              </button>
-              <button
-                onClick={() => navigate('/admin/users/new')}
-                data-testid="quick-add-user-btn"
-                className="w-full text-left px-4 py-3 bg-green-50 hover:bg-green-100 rounded-lg transition-colors text-green-700 font-medium"
-              >
-                + Yeni Kullanıcı Ekle
-              </button>
+            <div className="flex items-center gap-3 mb-4">
+              <Landmark size={24} className="text-blue-600" />
+              <h3 className="text-2xl font-bold text-slate-800">Banka Hesapları</h3>
             </div>
+            {bankAccounts.length === 0 ? (
+              <p className="text-slate-500 text-center py-4">Henüz banka hesabı eklenmemiş</p>
+            ) : (
+              <div className="space-y-3">
+                {bankAccounts.map((account) => (
+                  <div 
+                    key={account.id} 
+                    className="flex items-center justify-between px-4 py-3 bg-slate-50 rounded-lg"
+                  >
+                    <div>
+                      <p className="font-semibold text-slate-800">{account.bank_name}</p>
+                      <p className="text-sm text-slate-500">{account.holder_name}</p>
+                    </div>
+                    <p className="font-bold text-blue-600 text-lg">{formatMoney(account.balance || 0)} ₺</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="admin-card p-8 bg-gradient-to-br from-blue-50 to-indigo-50">
