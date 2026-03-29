@@ -344,6 +344,14 @@ const TeacherStudents = () => {
                   ) : (
                     <>
                       <Button
+                        onClick={handleLessonEntry}
+                        data-testid="lesson-entry-btn"
+                        className="teacher-btn"
+                      >
+                        <Edit size={18} className="mr-2" />
+                        Ders Girişi
+                      </Button>
+                      <Button
                         onClick={handleLessonPlanning}
                         data-testid="lesson-planning-btn"
                         variant="outline"
@@ -351,14 +359,6 @@ const TeacherStudents = () => {
                       >
                         <Calendar size={18} className="mr-2" />
                         Ders Planlama
-                      </Button>
-                      <Button
-                        onClick={handleLessonEntry}
-                        data-testid="lesson-entry-btn"
-                        className="teacher-btn"
-                      >
-                        <Edit size={18} className="mr-2" />
-                        Ders Girişi
                       </Button>
                     </>
                   )}
