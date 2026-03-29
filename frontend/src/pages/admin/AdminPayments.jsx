@@ -152,10 +152,22 @@ const AdminPayments = () => {
         toast.error('Banka hesabı seçimi zorunludur');
         return;
       }
-      // Kasa otomatik seçilmeli (branştan)
+      // Kasa bulunamadıysa, ilk kasayı kullan veya uyarı ver
       if (!newPayment.cashbox_id) {
-        toast.error('Branş seçimi yapınca kasa otomatik belirlenir. Lütfen branş seçin.');
-        return;
+        // Branşa göre kasayı bul
+        const selectedBranch = branches.find(b => b.id === newPayment.branch_id);
+        const matchingCashbox = cashboxes.find(c => 
+          c.branch_id === newPayment.branch_id || c.name?.toLowerCase() === selectedBranch?.name?.toLowerCase()
+        );
+        if (matchingCashbox) {
+          newPayment.cashbox_id = matchingCashbox.id;
+        } else if (cashboxes.length > 0) {
+          // Eşleşen kasa yoksa ilk kasayı kullan
+          newPayment.cashbox_id = cashboxes[0].id;
+        } else {
+          toast.error('Sistemde kasa tanımlı değil. Önce kasa ekleyin.');
+          return;
+        }
       }
     }
     
@@ -614,7 +626,6 @@ const AdminPayments = () => {
                         </Command>
                       </PopoverContent>
                     </Popover>
-                    <p className="text-xs text-slate-500">Öğrenci seçmeden de ödeme kaydedebilirsiniz</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="branch">Branş *</Label>
@@ -624,7 +635,7 @@ const AdminPayments = () => {
                         // Branş seçilince aynı isimli kasayı otomatik seç
                         const selectedBranch = branches.find(b => b.id === value);
                         const matchingCashbox = cashboxes.find(c => 
-                          c.name.toLowerCase() === selectedBranch?.name?.toLowerCase()
+                          c.branch_id === value || c.name?.toLowerCase() === selectedBranch?.name?.toLowerCase()
                         );
                         setNewPayment({ 
                           ...newPayment, 
@@ -642,7 +653,6 @@ const AdminPayments = () => {
                         ))}
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-slate-500">Branş seçtiğinizde ilgili kasa otomatik seçilir</p>
                   </div>
                 </>
               )}
@@ -730,15 +740,6 @@ const AdminPayments = () => {
                   </SelectContent>
                 </Select>
               </div>
-              {/* Kasa otomatik seçilir - branş bazlı */}
-              {newPayment.cashbox_id && (
-                <div className="p-3 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-blue-700">
-                    Kasa: <strong>{cashboxes.find(c => c.id === newPayment.cashbox_id)?.name || 'Seçili'}</strong>
-                    <span className="text-xs block mt-1 text-blue-600">(Branşa göre otomatik seçildi)</span>
-                  </p>
-                </div>
-              )}
               <div className="grid grid-cols-2 gap-3 pt-2">
                 <Button type="button" variant="outline" onClick={closeDialog} className="h-12">
                   İptal

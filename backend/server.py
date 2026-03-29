@@ -863,6 +863,17 @@ async def create_branch(name: str, current_user: User = Depends(get_current_user
     
     branch = Branch(name=name)
     await db.branches.insert_one(branch.model_dump())
+    
+    # Otomatik olarak aynı isimde kasa oluştur
+    cashbox_data = {
+        "id": str(uuid.uuid4()),
+        "name": name,
+        "branch_id": branch.id,
+        "balance": 0.0,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.cashboxes.insert_one(cashbox_data)
+    
     return branch
 
 @api_router.delete("/branches/{branch_id}")
