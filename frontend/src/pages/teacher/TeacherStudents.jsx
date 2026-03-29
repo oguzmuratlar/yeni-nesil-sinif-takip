@@ -5,7 +5,7 @@ import apiClient from '../../api/axios';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-import { Book, Calendar, Search, Users, ChevronRight, Edit, X } from 'lucide-react';
+import { Book, Calendar, Search, User, Users, ChevronRight, Edit, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 const TeacherStudents = () => {
