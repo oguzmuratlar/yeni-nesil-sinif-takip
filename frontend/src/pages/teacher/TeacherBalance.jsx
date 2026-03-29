@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { ExpandableText } from '../../components/ui/expandable-text';
 import { formatDateTurkish } from '../../lib/dateUtils';
+import { formatMoney } from '../../lib/utils';
 
 const TeacherBalance = () => {
   const { user } = useAuth();
@@ -113,15 +114,15 @@ const TeacherBalance = () => {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 lg:gap-8 mb-6 lg:mb-10">
           <div className="teacher-card p-4 lg:p-8 text-center">
             <p className="text-xs lg:text-sm text-stone-500 mb-1 lg:mb-2">Toplam Kazanç</p>
-            <p className="text-2xl lg:text-4xl font-bold text-teal-600">{balanceData.total_earnings?.toFixed(0) || '0'} ₺</p>
+            <p className="text-2xl lg:text-4xl font-bold text-teal-600">{formatMoney(balanceData.total_earnings, false)} ₺</p>
           </div>
           <div className="teacher-card p-4 lg:p-8 text-center">
             <p className="text-xs lg:text-sm text-stone-500 mb-1 lg:mb-2">Yapılan Ödeme</p>
-            <p className="text-2xl lg:text-4xl font-bold text-green-600">{balanceData.total_paid?.toFixed(0) || '0'} ₺</p>
+            <p className="text-2xl lg:text-4xl font-bold text-green-600">{formatMoney(balanceData.total_paid, false)} ₺</p>
           </div>
           <div className="teacher-card p-4 lg:p-8 text-center">
             <p className="text-xs lg:text-sm text-stone-500 mb-1 lg:mb-2">Kalan Bakiye</p>
-            <p className="text-2xl lg:text-4xl font-bold text-amber-600">{balanceData.balance?.toFixed(0) || '0'} ₺</p>
+            <p className="text-2xl lg:text-4xl font-bold text-amber-600">{formatMoney(balanceData.balance, false)} ₺</p>
           </div>
         </div>
 
@@ -139,7 +140,7 @@ const TeacherBalance = () => {
               </div>
               <ChevronRight size={18} className="text-slate-400" />
             </div>
-            <p className="text-xl lg:text-3xl font-bold text-blue-600">{balanceData.lesson_earnings?.toFixed(0) || '0'} ₺</p>
+            <p className="text-xl lg:text-3xl font-bold text-blue-600">{formatMoney(balanceData.lesson_earnings, false)} ₺</p>
             <p className="text-xs lg:text-sm text-slate-500 mt-1 lg:mt-2">Detay için tıklayın</p>
           </div>
           
@@ -155,7 +156,7 @@ const TeacherBalance = () => {
               </div>
               <ChevronRight size={18} className="text-slate-400" />
             </div>
-            <p className="text-xl lg:text-3xl font-bold text-emerald-600">{balanceData.camp_earnings?.toFixed(0) || '0'} ₺</p>
+            <p className="text-xl lg:text-3xl font-bold text-emerald-600">{formatMoney(balanceData.camp_earnings, false)} ₺</p>
             <p className="text-xs lg:text-sm text-slate-500 mt-1 lg:mt-2">Detay için tıklayın</p>
           </div>
 
@@ -171,7 +172,7 @@ const TeacherBalance = () => {
               </div>
               <ChevronRight size={18} className="text-slate-400" />
             </div>
-            <p className="text-xl lg:text-3xl font-bold text-red-600">{balanceData.youtube_earnings?.toFixed(0) || '0'} ₺</p>
+            <p className="text-xl lg:text-3xl font-bold text-red-600">{formatMoney(balanceData.youtube_earnings, false)} ₺</p>
             <p className="text-xs lg:text-sm text-slate-500 mt-1 lg:mt-2">Detay için tıklayın</p>
           </div>
         </div>
@@ -191,7 +192,7 @@ const TeacherBalance = () => {
                       <ExpandableText text={payment.description || 'Öğretmen ödemesi'} maxLength={40} />
                     </div>
                   </div>
-                  <p className="font-bold text-green-600 text-base lg:text-xl whitespace-nowrap">{payment.amount?.toFixed(0)} ₺</p>
+                  <p className="font-bold text-green-600 text-base lg:text-xl whitespace-nowrap">{formatMoney(payment.amount, false)} ₺</p>
                 </div>
               ))}
             </div>

@@ -122,9 +122,9 @@ const TeacherSchedule = () => {
   
   // YouTube kazançlarını aya göre filtrele
   const filteredYoutube = youtubeEarnings.filter(y => {
-    if (!y.created_at) return false;
-    const createdMonth = y.created_at.substring(0, 7);
-    return createdMonth === selectedMonth;
+    if (!y.date) return false;
+    const youtubeMonth = y.date.substring(0, 7);
+    return youtubeMonth === selectedMonth;
   });
   
   // Kamp kazançlarını aya göre filtrele
@@ -134,8 +134,8 @@ const TeacherSchedule = () => {
     return campMonth === selectedMonth;
   });
   
-  // YouTube toplam kazanç
-  const youtubeTotal = filteredYoutube.reduce((sum, y) => sum + (y.teacher_earning || 0), 0);
+  // YouTube toplam kazanç - amount alanını kullan (teacher_earning yerine)
+  const youtubeTotal = filteredYoutube.reduce((sum, y) => sum + (y.amount || 0), 0);
   
   // Kamp toplam kazanç
   const campTotal = filteredCamps.reduce((sum, c) => sum + (c.teacher_earning || 0), 0);

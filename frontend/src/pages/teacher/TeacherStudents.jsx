@@ -5,7 +5,7 @@ import apiClient from '../../api/axios';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-import { Book, Calendar, Search, User, Users, ChevronRight, ClipboardList, Edit } from 'lucide-react';
+import { Book, Calendar, Search, Users, ChevronRight, Edit, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 const TeacherStudents = () => {
@@ -80,8 +80,13 @@ const TeacherStudents = () => {
     if (!selectedItem) return;
     
     if (selectedItem.type === 'student') {
-      // Navigate to student profile where they can select which course to enter lessons for
-      navigate(`/teacher/students/${selectedItem.data.id}/profile`);
+      // Birebir öğrenci için kursunu bul ve ders girişine yönlendir
+      const studentCourse = courses.find(c => c.student_id === selectedItem.data.id);
+      if (studentCourse) {
+        navigate(`/teacher/students/${selectedItem.data.id}/lessons/${studentCourse.id}`);
+      } else {
+        toast.error('Öğrenciye ait kurs bulunamadı');
+      }
     } else {
       // Navigate to group lesson entry
       navigate(`/teacher/groups/${selectedItem.data.id}/lessons`);
@@ -92,8 +97,13 @@ const TeacherStudents = () => {
     if (!selectedItem) return;
     
     if (selectedItem.type === 'student') {
-      // Navigate to student profile where they can select which course to plan lessons for
-      navigate(`/teacher/students/${selectedItem.data.id}/profile`);
+      // Birebir öğrenci için kursunu bul ve ders planlamaya yönlendir
+      const studentCourse = courses.find(c => c.student_id === selectedItem.data.id);
+      if (studentCourse) {
+        navigate(`/teacher/students/${selectedItem.data.id}/planned-lessons/${studentCourse.id}`);
+      } else {
+        toast.error('Öğrenciye ait kurs bulunamadı');
+      }
     } else {
       // Navigate to group lesson planning
       navigate(`/teacher/groups/${selectedItem.data.id}/planned-lessons`);
@@ -334,25 +344,7 @@ const TeacherStudents = () => {
                   ) : (
                     <>
                       <Button
-                        onClick={() => navigate(`/teacher/students/${selectedItem.data.id}/profile`)}
-                        data-testid="view-profile-btn"
-                        variant="outline"
-                        className="rounded-full"
-                      >
-                        <User size={18} className="mr-2" />
-                        Profil
-                      </Button>
-                      <Button
-                        onClick={() => navigate(`/teacher/students/${selectedItem.data.id}/lessons`)}
-                        data-testid="view-lessons-btn"
-                        variant="outline"
-                        className="rounded-full"
-                      >
-                        <ClipboardList size={18} className="mr-2" />
-                        Dersler
-                      </Button>
-                      <Button
-                        onClick={() => navigate(`/teacher/students/${selectedItem.data.id}/planned-lessons`)}
+                        onClick={handleLessonPlanning}
                         data-testid="lesson-planning-btn"
                         variant="outline"
                         className="rounded-full"
@@ -361,7 +353,7 @@ const TeacherStudents = () => {
                         Ders Planlama
                       </Button>
                       <Button
-                        onClick={() => navigate(`/teacher/students/${selectedItem.data.id}/lesson-entry`)}
+                        onClick={handleLessonEntry}
                         data-testid="lesson-entry-btn"
                         className="teacher-btn"
                       >
