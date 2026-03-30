@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { Plus, Trash2, ArrowLeft, Edit } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Edit, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -19,6 +19,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../../components/ui/alert-dialog';
+
+// Ay adını Türkçe formata çevir
+const formatMonthTurkish = (monthStr) => {
+  if (!monthStr) return '';
+  const [year, month] = monthStr.split('-');
+  const monthNames = {
+    '01': 'Ocak', '02': 'Şubat', '03': 'Mart', '04': 'Nisan',
+    '05': 'Mayıs', '06': 'Haziran', '07': 'Temmuz', '08': 'Ağustos',
+    '09': 'Eylül', '10': 'Ekim', '11': 'Kasım', '12': 'Aralık'
+  };
+  return `${monthNames[month] || month} ${year}`;
+};
 
 const TeacherStudentPlannedLessons = () => {
   const { id, courseId } = useParams();
@@ -259,42 +271,66 @@ const TeacherStudentPlannedLessons = () => {
           </div>
         </div>
 
-        <div className="teacher-card p-8">
+        <div className="teacher-card p-6">
+          <h2 className="text-xl font-bold text-slate-800 mb-4">Planlı Dersler</h2>
+          
           {plannedLessons.length === 0 ? (
-            <p className="text-stone-600 text-center py-12">Henüz ders planlanmamış</p>
+            <div className="text-center py-8">
+              <Calendar size={48} className="mx-auto mb-4 text-slate-300" />
+              <p className="text-slate-500">Henüz ders planlanmamış</p>
+            </div>
           ) : (
             <div className="space-y-4">
-              {plannedLessons
-                .filter(p => filterMonth === 'all' || p.month === filterMonth)
-                .map((planned) => (
-                <div key={planned.id} className="flex items-center justify-between p-6 bg-stone-50 rounded-xl">
-                  <div>
-                    <p className="font-semibold text-slate-800 text-lg">{planned.dates} ({planned.month})</p>
-                    <p className="text-sm text-stone-600">{planned.number_of_lessons} ders</p>
+              {(() => {
+                // Aya göre grupla
+                const filteredPlans = plannedLessons.filter(p => filterMonth === 'all' || p.month === filterMonth);
+                const plansByMonth = filteredPlans.reduce((acc, plan) => {
+                  const monthLabel = formatMonthTurkish(plan.month);
+                  if (!acc[monthLabel]) {
+                    acc[monthLabel] = [];
+                  }
+                  acc[monthLabel].push(plan);
+                  return acc;
+                }, {});
+
+                if (Object.keys(plansByMonth).length === 0) {
+                  return <p className="text-stone-600 text-center py-6">Bu ay için plan bulunamadı</p>;
+                }
+
+                return Object.entries(plansByMonth).sort((a, b) => b[0].localeCompare(a[0])).map(([month, plans]) => (
+                  <div key={month} className="bg-slate-50 rounded-lg p-4">
+                    <h3 className="font-bold text-blue-700 text-lg mb-2">{month}</h3>
+                    {plans.map((planned) => (
+                      <div key={planned.id} className="flex items-center justify-between py-2 border-b border-slate-200 last:border-b-0">
+                        <span className="text-slate-700 font-medium">
+                          {planned.dates} - {planned.number_of_lessons} Ders
+                        </span>
+                        <div className="flex items-center gap-2">
+                          {planned.messaged && (
+                            <span className="text-xs text-green-600">✓ Mesaj gönderildi</span>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openEditDialog(planned)}
+                            className="h-8 w-8 p-0 text-slate-500 hover:text-blue-600"
+                          >
+                            <Edit size={16} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openDeleteDialog(planned)}
+                            className="h-8 w-8 p-0 text-slate-500 hover:text-red-600"
+                          >
+                            <Trash2 size={16} />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => openEditDialog(planned)}
-                      className="rounded-full"
-                    >
-                      <Edit size={16} />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => openDeleteDialog(planned)}
-                      className="rounded-full"
-                    >
-                      <Trash2 size={16} />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-              {plannedLessons.filter(p => filterMonth === 'all' || p.month === filterMonth).length === 0 && (
-                <p className="text-stone-600 text-center py-6">Bu ay için plan bulunamadı</p>
-              )}
+                ));
+              })()}
             </div>
           )}
         </div>
