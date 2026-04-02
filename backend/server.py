@@ -76,6 +76,7 @@ class Student(BaseModel):
     status: str = "active"
     bank_account_id: Optional[str] = None
     payment_account_name: Optional[str] = None  # Hesap adı (aylık program için)
+    is_risky: bool = False  # Riskli öğrenci işareti
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class StudentCreate(BaseModel):
@@ -88,6 +89,7 @@ class StudentCreate(BaseModel):
     bank_account_id: Optional[str] = None
     status: Optional[str] = None  # Pasifleştirme için
     payment_account_name: Optional[str] = None  # Hesap adı (aylık program için)
+    is_risky: Optional[bool] = None  # Riskli öğrenci işareti
 
 class Teacher(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -1880,7 +1882,8 @@ async def get_monthly_program_detailed(month: str, current_user: User = Depends(
             "total_payment": total_student_payment,
             "branch_details": branch_details,
             "teacher_earnings": teacher_earnings,
-            "price_overrides": note_data.get("price_overrides", {})
+            "price_overrides": note_data.get("price_overrides", {}),
+            "is_risky": student.get("is_risky", False)
         })
     
     # Öğretmen toplamları

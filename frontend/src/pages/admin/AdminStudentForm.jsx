@@ -8,8 +8,9 @@ import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { toast } from 'sonner';
-import { Plus, X, Users } from 'lucide-react';
+import { Plus, X, Users, AlertTriangle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
+import { Checkbox } from '../../components/ui/checkbox';
 
 const AdminStudentForm = () => {
   const { id } = useParams();
@@ -23,7 +24,8 @@ const AdminStudentForm = () => {
     level: '',
     payment_freq: '1',
     notes: '',
-    bank_account_id: ''
+    bank_account_id: '',
+    is_risky: false
   });
 
   const [bankAccounts, setBankAccounts] = useState([]);
@@ -70,7 +72,8 @@ const AdminStudentForm = () => {
         level: normalizeLevel(response.data.level),
         payment_freq: response.data.payment_freq,
         notes: response.data.notes || '',
-        bank_account_id: response.data.bank_account_id || ''
+        bank_account_id: response.data.bank_account_id || '',
+        is_risky: response.data.is_risky || false
       });
     } catch (error) {
       toast.error('Öğrenci bilgileri yüklenemedi');
@@ -350,6 +353,34 @@ const AdminStudentForm = () => {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <AlertTriangle size={16} className="text-red-500" />
+                  Risk Durumu
+                </Label>
+                <label 
+                  htmlFor="is_risky"
+                  className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                    formData.is_risky ? 'bg-red-50 border-red-300' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  <Checkbox
+                    id="is_risky"
+                    checked={formData.is_risky}
+                    onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_risky: !!checked }))}
+                    data-testid="is-risky-checkbox"
+                  />
+                  <div>
+                    <span className="font-medium text-slate-800">
+                      Riskli Öğrenci
+                    </span>
+                    <p className="text-xs text-slate-500">
+                      Aylık programda kırmızı ile işaretlenir
+                    </p>
+                  </div>
+                </label>
               </div>
             </div>
 

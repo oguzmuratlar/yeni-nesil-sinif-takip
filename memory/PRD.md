@@ -247,12 +247,25 @@ group_id: str (optional)  # YENİ - Grup dersi için
 ---
 
 ## Son Güncelleme
-- Tarih: 2026-03-26
-- Versiyon: 3.2
+- Tarih: 2026-04-02
+- Versiyon: 3.3
 - Değişiklikler:
-  1. Admin Aylık Program özet kartları güncellendi (Öğrenci Sayısı, Toplam Ciro, Öğretmen Gideri, Toplam Kar)
-  2. Kullanıcı Yönetimi sayfası geliştirildi:
-     - Kullanıcı listesi eklendi
-     - Kullanıcı düzenleme özelliği (kullanıcı adı, şifre, tip)
-     - Kullanıcı silme özelliği
-     - Backend API'leri: GET /users, PUT /users/{username}, DELETE /users/{username}
+  1. Admin Aylık Program - Ödeme Durumu ComboBox:
+     - 5 seçenek eklendi: Seçiniz, Ödedi, Mesaj atıldı, 2. hatırlatma yapıldı, 3. hatırlatma yapıldı, Parçalı ödeyecek
+     - Hem desktop hem mobil görünümde çalışıyor
+  2. Admin Aylık Program - Satır Renklendirme:
+     - Yeşil (bg-green-100): "Ödedi" durumu
+     - Sarı tonları: Hatırlatma durumları
+     - Kırmızı (bg-red-100): "Riskli" öğrenciler (ödedi hariç)
+  3. Admin Aylık Program - Sütun Sıralaması:
+     - Tıklanabilir başlıklar: Öğrenci, Toplam, Ödeme Durumu
+     - Artan/Azalan sıralama desteği
+     - Sıralama ikonları (↕↑↓)
+  4. Öğrenci Profili - "Riskli" Checkbox:
+     - Student modeline `is_risky` field eklendi
+     - Öğrenci düzenleme formuna "Riskli Öğrenci" checkbox eklendi
+     - Aylık programda "Riskli" etiketi ve kırmızı satır rengi
+  5. Backend güncellemeleri:
+     - Student model: is_risky field
+     - StudentCreate model: is_risky field
+     - monthly-program-detailed endpoint: is_risky bilgisi eklendi

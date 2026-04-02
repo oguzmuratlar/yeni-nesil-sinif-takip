@@ -11,7 +11,7 @@ import { formatMoney } from '../../lib/utils';
 
 // Ödeme durumu seçenekleri
 const PAYMENT_STATUS_OPTIONS = [
-  { value: '', label: 'Seçiniz' },
+  { value: 'none', label: 'Seçiniz' },
   { value: 'odedi', label: 'Ödedi' },
   { value: 'mesaj_atildi', label: 'Mesaj atıldı' },
   { value: 'hatirlatma_2', label: '2. hatırlatma yapıldı' },
@@ -21,11 +21,11 @@ const PAYMENT_STATUS_OPTIONS = [
 
 // Satır renk sınıfları
 const getRowColorClass = (paymentStatus, isRisky) => {
-  if (paymentStatus === 'odedi') return 'bg-green-50';
-  if (isRisky) return 'bg-red-50';
-  if (paymentStatus === 'mesaj_atildi') return 'bg-yellow-50';
-  if (paymentStatus === 'hatirlatma_2') return 'bg-yellow-100';
-  if (paymentStatus === 'hatirlatma_3') return 'bg-yellow-200';
+  if (paymentStatus === 'odedi') return 'bg-green-100';
+  if (isRisky) return 'bg-red-100';
+  if (paymentStatus === 'mesaj_atildi') return 'bg-yellow-100';
+  if (paymentStatus === 'hatirlatma_2') return 'bg-yellow-200';
+  if (paymentStatus === 'hatirlatma_3') return 'bg-amber-200';
   return '';
 };
 
@@ -110,13 +110,16 @@ const AdminMonthlyProgram = () => {
   );
 
   const handleNoteChange = (studentId, field, value) => {
+    // 'none' değeri boş string olarak kaydedilmeli
+    const saveValue = (field === 'payment_status' && value === 'none') ? '' : value;
+    
     setProgramData(prev => ({
       ...prev,
       students: prev.students.map(s => 
-        s.student_id === studentId ? { ...s, [field]: value } : s
+        s.student_id === studentId ? { ...s, [field]: saveValue } : s
       )
     }));
-    saveNote(studentId, field, value);
+    saveNote(studentId, field, saveValue);
   };
 
   // Fiyat override değişikliği
@@ -512,12 +515,19 @@ const AdminMonthlyProgram = () => {
                         </div>
                         <div>
                           <label className="text-xs text-slate-500 block mb-1">Ödeme Durumu</label>
-                          <Input
-                            value={student.payment_status || ''}
-                            onChange={(e) => handleNoteChange(student.student_id, 'payment_status', e.target.value)}
-                            className="h-10 text-sm"
-                            placeholder="Durum..."
-                          />
+                          <Select 
+                            value={student.payment_status || 'none'} 
+                            onValueChange={(value) => handleNoteChange(student.student_id, 'payment_status', value)}
+                          >
+                            <SelectTrigger className="h-10 text-sm" data-testid={`mobile-payment-status-${student.student_id}`}>
+                              <SelectValue placeholder="Seçiniz" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {PAYMENT_STATUS_OPTIONS.map(opt => (
+                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
 
@@ -585,13 +595,34 @@ const AdminMonthlyProgram = () => {
                   <thead className="bg-slate-100">
                     <tr>
                       <th className="text-left py-3 px-3 font-semibold text-slate-700 whitespace-nowrap sticky left-0 bg-slate-100 z-10">Not</th>
-                      <th className="text-left py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">Ödeme Durumu</th>
+                      <th className="text-left py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">
+                        <button 
+                          onClick={() => handleSort('payment_status')} 
+                          className="flex items-center hover:text-blue-600 transition-colors"
+                        >
+                          Ödeme Durumu {getSortIcon('payment_status')}
+                        </button>
+                      </th>
                       <th className="text-left py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">Hesap Adı</th>
                       <th className="text-left py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">Dersler</th>
-                      <th className="text-left py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">Öğrenci</th>
+                      <th className="text-left py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">
+                        <button 
+                          onClick={() => handleSort('student_name')} 
+                          className="flex items-center hover:text-blue-600 transition-colors"
+                        >
+                          Öğrenci {getSortIcon('student_name')}
+                        </button>
+                      </th>
                       <th className="text-left py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">Veli</th>
                       <th className="text-left py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">Ödeme Günü</th>
-                      <th className="text-right py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">Toplam</th>
+                      <th className="text-right py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">
+                        <button 
+                          onClick={() => handleSort('total')} 
+                          className="flex items-center justify-end hover:text-blue-600 transition-colors ml-auto"
+                        >
+                          Toplam {getSortIcon('total')}
+                        </button>
+                      </th>
                       
                       {programData?.branches?.map(branch => (
                         <th key={branch} colSpan={4} className="text-center py-3 px-3 font-semibold text-blue-700 bg-blue-50 border-l whitespace-nowrap">
@@ -623,72 +654,91 @@ const AdminMonthlyProgram = () => {
                   </thead>
                   
                   <tbody>
-                    {filteredStudents.map((student) => (
-                      <tr key={student.student_id} className="border-b hover:bg-slate-50">
-                        <td className="py-2 px-2 sticky left-0 bg-white z-10">
-                          <Input
-                            value={student.note || ''}
-                            onChange={(e) => handleNoteChange(student.student_id, 'note', e.target.value)}
-                            className="w-28 h-8 text-xs"
-                            placeholder="Not..."
-                          />
-                        </td>
-                        <td className="py-2 px-2">
-                          <Input
-                            value={student.payment_status || ''}
-                            onChange={(e) => handleNoteChange(student.student_id, 'payment_status', e.target.value)}
-                            className="w-24 h-8 text-xs"
-                            placeholder="Durum..."
-                          />
-                        </td>
-                        <td className="py-2 px-2 text-xs text-slate-600 whitespace-nowrap">{student.account_name || '-'}</td>
-                        <td className="py-2 px-2 text-xs"><span className="text-blue-600">{student.courses || '-'}</span></td>
-                        <td className="py-2 px-2 font-medium text-slate-800 whitespace-nowrap">{student.student_name}</td>
-                        <td className="py-2 px-2 text-xs text-slate-600 whitespace-nowrap">{student.parent_name}</td>
-                        <td className="py-2 px-2 text-xs text-slate-700 whitespace-nowrap">
-                          {student.payment_day ? (
-                            <span className="bg-amber-50 text-amber-700 px-2 py-1 rounded font-medium">
-                              Ayın {student.payment_day}. günü
-                            </span>
-                          ) : '-'}
-                        </td>
-                        <td className="py-2 px-2 text-right font-bold text-green-600 whitespace-nowrap">
-                          {formatMoney(calculateStudentTotal(student), false)} ₺
-                        </td>
-                        
-                        {programData?.branches?.map(branch => {
-                          const detail = student.branch_details?.[branch];
-                          const hasOverride = student.price_overrides?.[branch] !== undefined;
-                          return (
-                            <React.Fragment key={`${student.student_id}-${branch}`}>
-                              <td className="py-2 px-2 text-xs text-slate-600 border-l whitespace-nowrap">{detail?.dates || '-'}</td>
-                              <td className="py-2 px-2 text-xs text-center text-slate-600">{detail?.unit_price ? `${formatMoney(detail.unit_price, false)}₺` : '-'}</td>
-                              <td className={`py-2 px-2 text-xs text-center ${hasOverride ? 'line-through text-slate-400' : 'text-slate-600'}`}>
-                                {detail?.total ? `${formatMoney(detail.total, false)}₺` : '-'}
+                    {sortedStudents.map((student) => {
+                      const rowColorClass = getRowColorClass(student.payment_status, student.is_risky);
+                      return (
+                        <tr 
+                          key={student.student_id} 
+                          className={`border-b hover:brightness-95 transition-all ${rowColorClass}`}
+                          data-testid={`desktop-row-${student.student_id}`}
+                        >
+                          <td className={`py-2 px-2 sticky left-0 z-10 ${rowColorClass || 'bg-white'}`}>
+                            <Input
+                              value={student.note || ''}
+                              onChange={(e) => handleNoteChange(student.student_id, 'note', e.target.value)}
+                              className="w-28 h-8 text-xs"
+                              placeholder="Not..."
+                            />
+                          </td>
+                          <td className="py-2 px-2">
+                            <Select 
+                              value={student.payment_status || 'none'} 
+                              onValueChange={(value) => handleNoteChange(student.student_id, 'payment_status', value)}
+                            >
+                              <SelectTrigger className="w-36 h-8 text-xs" data-testid={`payment-status-select-${student.student_id}`}>
+                                <SelectValue placeholder="Seçiniz" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {PAYMENT_STATUS_OPTIONS.map(opt => (
+                                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </td>
+                          <td className="py-2 px-2 text-xs text-slate-600 whitespace-nowrap">{student.account_name || '-'}</td>
+                          <td className="py-2 px-2 text-xs"><span className="text-blue-600">{student.courses || '-'}</span></td>
+                          <td className="py-2 px-2 font-medium text-slate-800 whitespace-nowrap">
+                            {student.student_name}
+                            {student.is_risky && student.payment_status !== 'odedi' && (
+                              <span className="ml-2 text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded">Riskli</span>
+                            )}
+                          </td>
+                          <td className="py-2 px-2 text-xs text-slate-600 whitespace-nowrap">{student.parent_name}</td>
+                          <td className="py-2 px-2 text-xs text-slate-700 whitespace-nowrap">
+                            {student.payment_day ? (
+                              <span className="bg-amber-50 text-amber-700 px-2 py-1 rounded font-medium">
+                                Ayın {student.payment_day}. günü
+                              </span>
+                            ) : '-'}
+                          </td>
+                          <td className="py-2 px-2 text-right font-bold text-green-600 whitespace-nowrap">
+                            {formatMoney(calculateStudentTotal(student), false)} ₺
+                          </td>
+                          
+                          {programData?.branches?.map(branch => {
+                            const detail = student.branch_details?.[branch];
+                            const hasOverride = student.price_overrides?.[branch] !== undefined;
+                            return (
+                              <React.Fragment key={`${student.student_id}-${branch}`}>
+                                <td className="py-2 px-2 text-xs text-slate-600 border-l whitespace-nowrap">{detail?.dates || '-'}</td>
+                                <td className="py-2 px-2 text-xs text-center text-slate-600">{detail?.unit_price ? `${formatMoney(detail.unit_price, false)}₺` : '-'}</td>
+                                <td className={`py-2 px-2 text-xs text-center ${hasOverride ? 'line-through text-slate-400' : 'text-slate-600'}`}>
+                                  {detail?.total ? `${formatMoney(detail.total, false)}₺` : '-'}
+                                </td>
+                                <td className="py-2 px-2">
+                                  <Input
+                                    type="number"
+                                    value={hasOverride ? student.price_overrides[branch] : ''}
+                                    onChange={(e) => handlePriceOverrideChange(student.student_id, branch, e.target.value)}
+                                    placeholder="-"
+                                    className={`w-24 h-7 text-sm text-center ${hasOverride ? 'border-orange-400 bg-orange-50' : ''}`}
+                                  />
+                                </td>
+                              </React.Fragment>
+                            );
+                          })}
+                          
+                          {programData?.teachers?.map(teacher => {
+                            const earning = student.teacher_earnings?.[teacher.name];
+                            return (
+                              <td key={`${student.student_id}-t-${teacher.id}`} className="py-2 px-2 text-xs text-center font-medium text-emerald-600 border-l">
+                                {earning ? `${formatMoney(earning, false)}₺` : '-'}
                               </td>
-                              <td className="py-2 px-2">
-                                <Input
-                                  type="number"
-                                  value={hasOverride ? student.price_overrides[branch] : ''}
-                                  onChange={(e) => handlePriceOverrideChange(student.student_id, branch, e.target.value)}
-                                  placeholder="-"
-                                  className={`w-24 h-7 text-sm text-center ${hasOverride ? 'border-orange-400 bg-orange-50' : ''}`}
-                                />
-                              </td>
-                            </React.Fragment>
-                          );
-                        })}
-                        
-                        {programData?.teachers?.map(teacher => {
-                          const earning = student.teacher_earnings?.[teacher.name];
-                          return (
-                            <td key={`${student.student_id}-t-${teacher.id}`} className="py-2 px-2 text-xs text-center font-medium text-emerald-600 border-l">
-                              {earning ? `${formatMoney(earning, false)}₺` : '-'}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
