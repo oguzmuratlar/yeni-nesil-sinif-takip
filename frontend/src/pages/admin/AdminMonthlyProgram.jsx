@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import AdminLayout from '../../components/layouts/AdminLayout';
 import apiClient from '../../api/axios';
-import { Calendar, Filter, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Calendar, Filter, X, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Input } from '../../components/ui/input';
@@ -9,12 +9,33 @@ import { Button } from '../../components/ui/button';
 import { debounce } from 'lodash';
 import { formatMoney } from '../../lib/utils';
 
+// Ödeme durumu seçenekleri
+const PAYMENT_STATUS_OPTIONS = [
+  { value: '', label: 'Seçiniz' },
+  { value: 'odedi', label: 'Ödedi' },
+  { value: 'mesaj_atildi', label: 'Mesaj atıldı' },
+  { value: 'hatirlatma_2', label: '2. hatırlatma yapıldı' },
+  { value: 'hatirlatma_3', label: '3. hatırlatma yapıldı' },
+  { value: 'parcali', label: 'Parçalı ödeyecek' },
+];
+
+// Satır renk sınıfları
+const getRowColorClass = (paymentStatus, isRisky) => {
+  if (paymentStatus === 'odedi') return 'bg-green-50';
+  if (isRisky) return 'bg-red-50';
+  if (paymentStatus === 'mesaj_atildi') return 'bg-yellow-50';
+  if (paymentStatus === 'hatirlatma_2') return 'bg-yellow-100';
+  if (paymentStatus === 'hatirlatma_3') return 'bg-yellow-200';
+  return '';
+};
+
 const AdminMonthlyProgram = () => {
   const [programData, setProgramData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().substring(0, 7));
   const [expandedStudent, setExpandedStudent] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   
   // Filtreler
   const [filterStudent, setFilterStudent] = useState('');
@@ -157,6 +178,22 @@ const AdminMonthlyProgram = () => {
     return statuses.sort();
   }, [programData?.students]);
 
+  // Sıralama fonksiyonu
+  const handleSort = (key) => {
+    setSortConfig(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  // Sıralama ikonu
+  const getSortIcon = (key) => {
+    if (sortConfig.key !== key) return <ArrowUpDown size={14} className="ml-1 text-slate-400" />;
+    return sortConfig.direction === 'asc' 
+      ? <ArrowUp size={14} className="ml-1 text-blue-600" />
+      : <ArrowDown size={14} className="ml-1 text-blue-600" />;
+  };
+
   // Filtreleme
   const filteredStudents = programData?.students?.filter(student => {
     if (filterStudent && !student.student_name.toLowerCase().includes(filterStudent.toLowerCase())) {
@@ -182,7 +219,42 @@ const AdminMonthlyProgram = () => {
     return true;
   }) || [];
 
-  const grandTotal = filteredStudents.reduce((sum, s) => sum + calculateStudentTotal(s), 0);
+  // Sıralama uygula
+  const sortedStudents = useMemo(() => {
+    if (!sortConfig.key) return filteredStudents;
+    
+    return [...filteredStudents].sort((a, b) => {
+      let aVal, bVal;
+      
+      switch (sortConfig.key) {
+        case 'student_name':
+          aVal = a.student_name || '';
+          bVal = b.student_name || '';
+          break;
+        case 'total':
+          aVal = calculateStudentTotal(a);
+          bVal = calculateStudentTotal(b);
+          break;
+        case 'payment_status':
+          aVal = a.payment_status || '';
+          bVal = b.payment_status || '';
+          break;
+        default:
+          return 0;
+      }
+      
+      // Sayısal değerler için
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal;
+      }
+      
+      // Alfabetik sıralama
+      const comparison = aVal.toString().localeCompare(bVal.toString(), 'tr');
+      return sortConfig.direction === 'asc' ? comparison : -comparison;
+    });
+  }, [filteredStudents, sortConfig, calculateStudentTotal]);
+
+  const grandTotal = sortedStudents.reduce((sum, s) => sum + calculateStudentTotal(s), 0);
 
   // Toplam öğretmen gideri
   const totalTeacherExpense = useMemo(() => {
@@ -368,7 +440,7 @@ const AdminMonthlyProgram = () => {
         </div>
 
         {/* Data Display */}
-        {filteredStudents.length === 0 ? (
+        {sortedStudents.length === 0 ? (
           <div className="admin-card p-8 lg:p-12 text-center">
             <Calendar size={48} className="mx-auto mb-4 text-slate-400" />
             <p className="text-slate-600 text-lg">
@@ -384,8 +456,12 @@ const AdminMonthlyProgram = () => {
           <>
             {/* Mobile Card View */}
             <div className="lg:hidden space-y-3">
-              {filteredStudents.map((student) => (
-                <div key={student.student_id} className="admin-card overflow-hidden" data-testid={`student-row-${student.student_id}`}>
+              {sortedStudents.map((student) => (
+                <div 
+                  key={student.student_id} 
+                  className={`admin-card overflow-hidden ${getRowColorClass(student.payment_status, student.is_risky)}`}
+                  data-testid={`student-row-${student.student_id}`}
+                >
                   {/* Card Header - Always Visible */}
                   <div 
                     className="p-4 cursor-pointer active:bg-slate-50"
@@ -393,7 +469,12 @@ const AdminMonthlyProgram = () => {
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-slate-800 truncate">{student.student_name}</h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-slate-800 truncate">{student.student_name}</h3>
+                          {student.is_risky && student.payment_status !== 'odedi' && (
+                            <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded">Riskli</span>
+                          )}
+                        </div>
                         <p className="text-sm text-slate-500">{student.parent_name}</p>
                         <div className="flex items-center gap-2 mt-2">
                           {student.payment_day && (
