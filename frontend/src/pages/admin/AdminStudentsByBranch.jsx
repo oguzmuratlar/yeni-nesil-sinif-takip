@@ -154,9 +154,11 @@ const AdminStudentsByBranch = () => {
                       >
                         {student.student_name}
                       </h3>
-                      <Badge variant={student.status === 'borclu' ? 'destructive' : 'secondary'}>
-                        {student.status === 'borclu' ? 'Borçlu' : 'Alacaklı'}
-                      </Badge>
+                      {student.remaining_balance !== 0 && (
+                        <Badge variant={student.status === 'borclu' ? 'destructive' : 'secondary'}>
+                          {student.status === 'borclu' ? 'Borçlu' : 'Ders bakiyesi var'}
+                        </Badge>
+                      )}
                     </div>
                     <p className="text-sm text-slate-500">Veli: {student.parent_name}</p>
                     <p className="text-xs text-slate-400">{student.level}. Sınıf • {student.teacher_name}</p>
