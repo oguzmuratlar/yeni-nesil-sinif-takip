@@ -693,6 +693,24 @@ const AdminPayments = () => {
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cashbox">Kasa *</Label>
+                    <Select 
+                      value={newPayment.cashbox_id} 
+                      onValueChange={(value) => setNewPayment({ ...newPayment, cashbox_id: value })}
+                    >
+                      <SelectTrigger className="h-12" data-testid="expense-cashbox-select">
+                        <SelectValue placeholder="Hangi kasadan çıkacak?" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {cashboxes.map((cashbox) => (
+                          <SelectItem key={cashbox.id} value={cashbox.id}>
+                            {cashbox.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   {newPayment.expense_category === 'Maaş' && (
                     <div className="space-y-2">
                       <Label htmlFor="teacher">Öğretmen *</Label>
