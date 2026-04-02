@@ -45,6 +45,7 @@ const AdminPayments = () => {
   const [studentFilterSearch, setStudentFilterSearch] = useState('');
   const [formStudentOpen, setFormStudentOpen] = useState(false);
   const [formStudentSearch, setFormStudentSearch] = useState('');
+  const [studentCourses, setStudentCourses] = useState([]);
   const [newPayment, setNewPayment] = useState({
     amount: '',
     date: new Date().toISOString().split('T')[0],
@@ -99,20 +100,32 @@ const AdminPayments = () => {
       : student.name;
   };
 
+  // Get student's branches
+  const getStudentBranches = (studentId) => {
+    const courses = studentCourses.filter(c => c.student_id === studentId);
+    const branchNames = courses.map(c => {
+      const branch = branches.find(b => b.id === c.branch_id);
+      return branch?.name;
+    }).filter(Boolean);
+    return [...new Set(branchNames)]; // Remove duplicates
+  };
+
   const fetchReferenceData = async () => {
     try {
-      const [studentsRes, teachersRes, branchesRes, cashboxesRes, banksRes] = await Promise.all([
+      const [studentsRes, teachersRes, branchesRes, cashboxesRes, banksRes, coursesRes] = await Promise.all([
         apiClient.get('/students'),
         apiClient.get('/teachers'),
         apiClient.get('/branches'),
         apiClient.get('/cashboxes'),
-        apiClient.get('/bank-accounts')
+        apiClient.get('/bank-accounts'),
+        apiClient.get('/student-courses')
       ]);
       setStudents(studentsRes.data);
       setTeachers(teachersRes.data);
       setBranches(branchesRes.data);
       setCashboxes(cashboxesRes.data?.cashboxes || []);
       setBankAccounts(banksRes.data);
+      setStudentCourses(coursesRes.data);
     } catch (error) {
       toast.error('Referans veriler yüklenemedi');
     }
@@ -597,30 +610,36 @@ const AdminPayments = () => {
                                 />
                                 <span className="text-muted-foreground">Öğrenci Seçme</span>
                               </CommandItem>
-                              {filteredStudentsForForm.slice(0, 50).map((student) => (
-                                <CommandItem
-                                  key={student.id}
-                                  value={student.id}
-                                  onSelect={() => {
-                                    setNewPayment({ ...newPayment, student_id: student.id });
-                                    setFormStudentOpen(false);
-                                    setFormStudentSearch('');
-                                  }}
-                                >
-                                  <Check
-                                    className={cn(
-                                      "mr-2 h-4 w-4",
-                                      newPayment.student_id === student.id ? "opacity-100" : "opacity-0"
-                                    )}
-                                  />
-                                  <div className="flex flex-col">
-                                    <span className="font-medium">{student.name}</span>
-                                    {student.parent_name && (
-                                      <span className="text-xs text-muted-foreground">Veli: {student.parent_name}</span>
-                                    )}
-                                  </div>
-                                </CommandItem>
-                              ))}
+                              {filteredStudentsForForm.slice(0, 50).map((student) => {
+                                const studentBranches = getStudentBranches(student.id);
+                                return (
+                                  <CommandItem
+                                    key={student.id}
+                                    value={student.id}
+                                    onSelect={() => {
+                                      setNewPayment({ ...newPayment, student_id: student.id });
+                                      setFormStudentOpen(false);
+                                      setFormStudentSearch('');
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4 flex-shrink-0",
+                                        newPayment.student_id === student.id ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    <div className="flex flex-col min-w-0">
+                                      <span className="font-medium">{student.name}</span>
+                                      {student.parent_name && (
+                                        <span className="text-xs text-muted-foreground">Veli: {student.parent_name}</span>
+                                      )}
+                                      {studentBranches.length > 0 && (
+                                        <span className="text-xs text-blue-600 font-medium">{studentBranches.join(', ')}</span>
+                                      )}
+                                    </div>
+                                  </CommandItem>
+                                );
+                              })}
                             </CommandGroup>
                           </CommandList>
                         </Command>
