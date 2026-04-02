@@ -248,24 +248,23 @@ group_id: str (optional)  # YENİ - Grup dersi için
 
 ## Son Güncelleme
 - Tarih: 2026-04-02
-- Versiyon: 3.3
+- Versiyon: 3.4
 - Değişiklikler:
-  1. Admin Aylık Program - Ödeme Durumu ComboBox:
+  1. **ÖNEMLİ İŞ KURALI DÜZELTMESİ**: Öğrenci dersten ayrıldığında öğretmen kazancı artık silinmiyor
+     - Lesson modeline `teacher_id`, `branch_id`, `student_id` field'ları eklendi
+     - Ders oluşturulurken bu bilgiler kaydediliyor
+     - Course silinse bile ders kayıtları ve öğretmen kazancı korunuyor
+     - Geriye dönük uyumluluk: Mevcut dersler için migration endpoint eklendi
+  2. Admin Aylık Program - Ödeme Durumu ComboBox:
      - 5 seçenek eklendi: Seçiniz, Ödedi, Mesaj atıldı, 2. hatırlatma yapıldı, 3. hatırlatma yapıldı, Parçalı ödeyecek
      - Hem desktop hem mobil görünümde çalışıyor
-  2. Admin Aylık Program - Satır Renklendirme:
+  3. Admin Aylık Program - Satır Renklendirme:
      - Yeşil (bg-green-100): "Ödedi" durumu
      - Sarı tonları: Hatırlatma durumları
      - Kırmızı (bg-red-100): "Riskli" öğrenciler (ödedi hariç)
-  3. Admin Aylık Program - Sütun Sıralaması:
+  4. Admin Aylık Program - Sütun Sıralaması:
      - Tıklanabilir başlıklar: Öğrenci, Toplam, Ödeme Durumu
      - Artan/Azalan sıralama desteği
-     - Sıralama ikonları (↕↑↓)
-  4. Öğrenci Profili - "Riskli" Checkbox:
+  5. Öğrenci Profili - "Riskli" Checkbox:
      - Student modeline `is_risky` field eklendi
      - Öğrenci düzenleme formuna "Riskli Öğrenci" checkbox eklendi
-     - Aylık programda "Riskli" etiketi ve kırmızı satır rengi
-  5. Backend güncellemeleri:
-     - Student model: is_risky field
-     - StudentCreate model: is_risky field
-     - monthly-program-detailed endpoint: is_risky bilgisi eklendi

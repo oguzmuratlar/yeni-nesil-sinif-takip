@@ -210,6 +210,9 @@ class Lesson(BaseModel):
     season_id: Optional[str] = None
     teacher_rate: Optional[float] = None  # Ücret, ders oluşturulduğu anki fiyat (geriye dönük değişiklik yapılmaz)
     group_id: Optional[str] = None  # Grup dersi ise grubun ID'si
+    teacher_id: Optional[str] = None  # Öğretmen ID - course silinse bile kazanç hesaplanabilsin
+    branch_id: Optional[str] = None  # Branş ID - course silinse bile kazanç hesaplanabilsin
+    student_id: Optional[str] = None  # Öğrenci ID - course silinse bile izlenebilsin
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class LessonCreate(BaseModel):
@@ -1106,7 +1109,14 @@ async def create_lesson(lesson_data: LessonCreate, current_user: User = Depends(
         if teacher_price:
             teacher_rate = teacher_price["price"]
     
-    lesson = Lesson(**lesson_data.model_dump(), teacher_rate=teacher_rate)
+    # Ders kaydına course bilgilerini de ekle (course silinse bile kazanç hesaplanabilsin)
+    lesson = Lesson(
+        **lesson_data.model_dump(), 
+        teacher_rate=teacher_rate,
+        teacher_id=course["teacher_id"],
+        branch_id=course["branch_id"],
+        student_id=course["student_id"]
+    )
     doc = lesson.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
     await db.lessons.insert_one(doc)
@@ -1323,16 +1333,34 @@ async def get_teacher_balance(
     if current_user.user_type == "teacher" and current_user.teacher_id != teacher_id:
         raise HTTPException(status_code=403, detail="Access denied")
     
-    # Get all lessons for this teacher
+    # Dersleri doğrudan teacher_id ile veya course üzerinden getir
+    # Yeni sistem: lesson'da teacher_id var
+    lesson_query_direct = {"teacher_id": teacher_id}
+    if month:
+        lesson_query_direct["date"] = {"$regex": f"^{month}"}
+    
+    lessons_direct = await db.lessons.find(lesson_query_direct, {"_id": 0}).to_list(10000)
+    
+    # Eski sistemle uyumluluk: teacher_id olmayan dersler için course üzerinden bul
     courses = await db.student_courses.find({"teacher_id": teacher_id}, {"_id": 0}).to_list(1000)
     course_ids = [c["id"] for c in courses]
     
-    # Ders sorgusu - ay filtresi varsa uygula
-    lesson_query = {"student_course_id": {"$in": course_ids}}
+    old_lesson_query = {
+        "student_course_id": {"$in": course_ids},
+        "$or": [{"teacher_id": None}, {"teacher_id": {"$exists": False}}]
+    }
     if month:
-        lesson_query["date"] = {"$regex": f"^{month}"}
+        old_lesson_query["date"] = {"$regex": f"^{month}"}
     
-    lessons = await db.lessons.find(lesson_query, {"_id": 0}).to_list(10000)
+    lessons_old = await db.lessons.find(old_lesson_query, {"_id": 0}).to_list(10000)
+    
+    # Tüm dersleri birleştir (duplicate olmaması için id kontrolü)
+    all_lesson_ids = set()
+    lessons = []
+    for lesson in lessons_direct + lessons_old:
+        if lesson["id"] not in all_lesson_ids:
+            all_lesson_ids.add(lesson["id"])
+            lessons.append(lesson)
     
     # Calculate earnings based on lesson rates (stored at creation time)
     total_earnings = 0
@@ -1342,7 +1370,7 @@ async def get_teacher_balance(
             total_earnings += lesson["teacher_rate"] * lesson["number_of_lessons"]
         else:
             # Eski dersler için fallback: güncel fiyatı kullan
-            course = next((c for c in courses if c["id"] == lesson["student_course_id"]), None)
+            course = next((c for c in courses if c["id"] == lesson.get("student_course_id")), None)
             if course:
                 # Get teacher price for this course
                 teacher_price = await db.teacher_prices.find_one({
@@ -2628,25 +2656,41 @@ async def get_teacher_lesson_income_detail(teacher_id: str, month: Optional[str]
     """
     Öğretmenin ders kazanç detaylarını grup bazlı getir.
     Her grup için: branş, grup adı, ders tipi, ders sayısı, birim ücret, toplam kazanç
+    NOT: Course silinse bile, lesson'da saklanan teacher_id ile kazanç hesaplanır.
     """
     # Erişim kontrolü
     if current_user.user_type == "teacher" and current_user.teacher_id != teacher_id:
         raise HTTPException(status_code=403, detail="Access denied")
     
-    # Öğretmenin ders verdiği kursları bul
-    courses = await db.student_courses.find({
-        "teacher_id": teacher_id,
-        "status": "active"
-    }, {"_id": 0}).to_list(10000)
-    course_ids = [c["id"] for c in courses]
-    course_map = {c["id"]: c for c in courses}
-    
-    # Dersleri getir
-    lesson_filter = {"student_course_id": {"$in": course_ids}}
+    # Dersleri doğrudan teacher_id ile veya course üzerinden getir
+    # Önce doğrudan teacher_id ile olan dersleri al (yeni sistem)
+    lesson_filter = {"teacher_id": teacher_id}
     if month:
         lesson_filter["date"] = {"$regex": f"^{month}"}
     
-    lessons = await db.lessons.find(lesson_filter, {"_id": 0}).to_list(10000)
+    lessons_direct = await db.lessons.find(lesson_filter, {"_id": 0}).to_list(10000)
+    
+    # Eski sistemle uyumluluk: teacher_id olmayan dersler için course üzerinden bul
+    courses = await db.student_courses.find({"teacher_id": teacher_id}, {"_id": 0}).to_list(10000)
+    course_ids = [c["id"] for c in courses]
+    course_map = {c["id"]: c for c in courses}
+    
+    old_lesson_filter = {
+        "student_course_id": {"$in": course_ids},
+        "$or": [{"teacher_id": None}, {"teacher_id": {"$exists": False}}]
+    }
+    if month:
+        old_lesson_filter["date"] = {"$regex": f"^{month}"}
+    
+    lessons_old = await db.lessons.find(old_lesson_filter, {"_id": 0}).to_list(10000)
+    
+    # Tüm dersleri birleştir (duplicate olmaması için id kontrolü)
+    all_lesson_ids = set()
+    lessons = []
+    for lesson in lessons_direct + lessons_old:
+        if lesson["id"] not in all_lesson_ids:
+            all_lesson_ids.add(lesson["id"])
+            lessons.append(lesson)
     
     # Referans verileri al
     branches = await db.branches.find({}, {"_id": 0}).to_list(100)
@@ -2664,11 +2708,19 @@ async def get_teacher_lesson_income_detail(teacher_id: str, month: Optional[str]
     income_by_source = {}
     
     for lesson in lessons:
-        course = course_map.get(lesson["student_course_id"])
-        if not course:
+        # Önce lesson'daki branch_id'yi kullan, yoksa course'dan al
+        branch_id = lesson.get("branch_id")
+        student_id = lesson.get("student_id")
+        
+        if not branch_id or not student_id:
+            course = course_map.get(lesson.get("student_course_id"))
+            if course:
+                branch_id = branch_id or course.get("branch_id")
+                student_id = student_id or course.get("student_id")
+        
+        if not branch_id:
             continue
         
-        branch_id = course["branch_id"]
         group_id = lesson.get("group_id")
         teacher_rate = lesson.get("teacher_rate") or 0
         
@@ -2683,15 +2735,19 @@ async def get_teacher_lesson_income_detail(teacher_id: str, month: Optional[str]
             source_type = "Grup Dersi"
             group_size = len(group.get("student_ids", []))
         else:
-            student = student_map.get(course["student_id"], {})
-            key = f"student_{course['student_id']}_{branch_id}"
+            student = student_map.get(student_id, {})
+            key = f"student_{student_id}_{branch_id}"
             source_name = student.get("name", "Bilinmeyen Öğrenci")
             source_type = "Birebir Ders"
             group_size = 1
         
         if key not in income_by_source:
             branch = branch_map.get(branch_id, {})
-            lesson_type = lesson_type_map.get(course.get("lesson_type_id"), {})
+            # Ders tipini bulmak için course'a bakmamız gerekebilir
+            course = course_map.get(lesson.get("student_course_id"))
+            lesson_type_id = course.get("lesson_type_id") if course else None
+            lesson_type = lesson_type_map.get(lesson_type_id, {}) if lesson_type_id else {}
+            
             income_by_source[key] = {
                 "source_name": source_name,
                 "source_type": source_type,
@@ -3035,6 +3091,50 @@ async def init_cashboxes(current_user: User = Depends(get_current_user)):
         "migrated_payments": migrated_count,
         "turkce_cashbox_id": turkce_cashbox_id
     }
+
+
+@api_router.post("/migrate-lessons-teacher-info")
+async def migrate_lessons_teacher_info(current_user: User = Depends(get_current_user)):
+    """
+    Mevcut derslere teacher_id, branch_id, student_id bilgilerini ekle.
+    Bu bilgiler sayesinde course silinse bile öğretmen kazancı hesaplanabilir.
+    """
+    if current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can run migrations")
+    
+    # Tüm course'ları al
+    courses = await db.student_courses.find({}, {"_id": 0}).to_list(10000)
+    course_map = {c["id"]: c for c in courses}
+    
+    # teacher_id olmayan dersleri bul
+    lessons = await db.lessons.find({
+        "$or": [
+            {"teacher_id": None},
+            {"teacher_id": {"$exists": False}}
+        ]
+    }, {"_id": 0}).to_list(100000)
+    
+    updated_count = 0
+    for lesson in lessons:
+        course = course_map.get(lesson.get("student_course_id"))
+        if course:
+            update_data = {
+                "teacher_id": course.get("teacher_id"),
+                "branch_id": course.get("branch_id"),
+                "student_id": course.get("student_id")
+            }
+            await db.lessons.update_one(
+                {"id": lesson["id"]},
+                {"$set": update_data}
+            )
+            updated_count += 1
+    
+    return {
+        "message": "Migration completed",
+        "total_lessons_without_teacher_id": len(lessons),
+        "updated_lessons": updated_count
+    }
+
 
 # ============= INCLUDE ROUTER =============
 
